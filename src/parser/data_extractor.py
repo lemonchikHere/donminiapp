@@ -24,10 +24,10 @@ class PropertyDataExtractor:
         re.compile(r'(\d+)[-\s]?bedroom', re.IGNORECASE)
     ]
 
-    AREA_PATTERN = re.compile(r'(\d+[\.,]?\d*)\s*(м²|м2|кв\.м)', re.IGNORECASE)
-    FLOOR_PATTERN = re.compile(r'(\d+/\d+)\s*эт', re.IGNORECASE)
-    PRICE_USD_PATTERN = re.compile(r'(\d+[\s,]?\d*)\s*[\$|USD]', re.IGNORECASE)
-    PRICE_RUB_PATTERN = re.compile(r'(\d+[\s,]?\d*)\s*[₽|RUB|руб]', re.IGNORECASE)
+    AREA_PATTERN = re.compile(r'(\d+[\.,]?\d*)\s*(?:м²|м2|кв\.м)', re.IGNORECASE)
+    FLOOR_PATTERN = re.compile(r'(?:этаж|эт\.?)\s*:?\s*(\d+/\d+)', re.IGNORECASE)
+    PRICE_USD_PATTERN = re.compile(r'(\d[\d\s,]*)s*(?:\$|USD)', re.IGNORECASE)
+    PRICE_RUB_PATTERN = re.compile(r'(\d[\d\s,]*)\s*(?:₽|RUB|руб)', re.IGNORECASE)
 
     def extract(self, text: str) -> Dict:
         """Extracts structured data from message text."""
@@ -100,12 +100,12 @@ class PropertyDataExtractor:
     def generate_embedding(self, property_data: Dict) -> list:
         """Generates a vector embedding for semantic search."""
         text_parts = [
-            property_data.get('transaction_type', ''),
-            property_data.get('property_type', ''),
-            f"{property_data.get('rooms', '')} комнат",
-            f"{property_data.get('area_sqm', '')} м²",
-            property_data.get('address', ''),
-            property_data.get('description', '')
+            property_data.get('transaction_type'),
+            property_data.get('property_type'),
+            f"{property_data.get('rooms')} комнат" if property_data.get('rooms') else None,
+            f"{property_data.get('area_sqm')} м²" if property_data.get('area_sqm') else None,
+            property_data.get('address'),
+            property_data.get('description')
         ]
 
         text_to_embed = " ".join(filter(None, text_parts)).strip()
