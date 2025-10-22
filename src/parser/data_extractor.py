@@ -1,4 +1,5 @@
 import re
+import time
 from typing import Dict, Optional
 import openai
 from src.config import settings
@@ -97,8 +98,10 @@ class PropertyDataExtractor:
         # Placeholder for description cleaning logic
         return text.strip()
 
-    def generate_embedding(self, property_data: Dict) -> list:
-        """Generates a vector embedding for semantic search."""
+    def generate_embedding(self, property_data: Dict, max_retries: int = 3) -> Optional[list]:
+        """
+        Generates a vector embedding with retry logic for API calls.
+        """
         text_parts = [
             property_data.get('transaction_type'),
             property_data.get('property_type'),
@@ -107,18 +110,27 @@ class PropertyDataExtractor:
             property_data.get('address'),
             property_data.get('description')
         ]
-
         text_to_embed = " ".join(filter(None, text_parts)).strip()
 
         if not text_to_embed:
             return None
 
-        try:
-            response = openai.embeddings.create(
-                model="text-embedding-3-small",
-                input=text_to_embed
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            print(f"Error generating embedding: {e}")
-            return None
+        for attempt in range(max_retries):
+            try:
+                response = openai.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=text_to_embed
+                )
+                return response.data[0].embedding
+            except openai.RateLimitError as e:
+                wait_time = 2 ** attempt
+                print(f"Rate limit exceeded. Retrying in {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+            except Exception as e:
+                print(f"An unexpected error occurred while generating embedding: {e} (Attempt {attempt + 1}/{max_retries})")
+                if attempt == max_retries - 1:
+                    break
+                time.sleep(1)
+
+        print("Failed to generate embedding after multiple retries.")
+        return None

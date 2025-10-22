@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
+import openai
 from src.parser.data_extractor import PropertyDataExtractor
 
 @pytest.fixture(autouse=True)
@@ -134,13 +135,37 @@ def test_generate_embedding_with_missing_data(extractor):
             input='Просто описание'
         )
 
-@patch('openai.resources.embeddings.Embeddings.create', side_effect=Exception("API Error"))
-def test_generate_embedding_api_error(mock_openai_create, extractor):
+@patch('time.sleep', return_value=None)
+@patch('openai.resources.embeddings.Embeddings.create', side_effect=openai.RateLimitError("Rate limit exceeded", response=MagicMock(), body=None))
+def test_generate_embedding_rate_limit_retry(mock_openai_create, mock_sleep, extractor):
     """
-    Tests that the function handles exceptions from the OpenAI API.
+    Tests that the function retries on RateLimitError.
     """
-    property_data = {
-        'description': 'some text'
-    }
-    embedding = extractor.generate_embedding(property_data)
+    property_data = {'description': 'some text'}
+    embedding = extractor.generate_embedding(property_data, max_retries=3)
+
+    assert mock_openai_create.call_count == 3
     assert embedding is None
+
+@patch('time.sleep', return_value=None)
+@patch('openai.resources.embeddings.Embeddings.create')
+def test_generate_embedding_retry_success(mock_openai_create, mock_sleep, extractor):
+    """
+    Tests that the function succeeds on a retry attempt.
+    """
+    mock_embedding = [0.1, 0.2, 0.3]
+    mock_response = MagicMock()
+    mock_response.data = [MagicMock()]
+    mock_response.data[0].embedding = mock_embedding
+
+    # Fail on the first call, succeed on the second
+    mock_openai_create.side_effect = [
+        openai.RateLimitError("Rate limit exceeded", response=MagicMock(), body=None),
+        mock_response
+    ]
+
+    property_data = {'description': 'some text'}
+    embedding = extractor.generate_embedding(property_data, max_retries=3)
+
+    assert mock_openai_create.call_count == 2
+    assert embedding == mock_embedding
