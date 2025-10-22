@@ -1,3 +1,11 @@
+"""
+Tests for the property search API endpoint.
+
+This module contains tests for the `search_properties` function, ensuring
+that key functionalities like description truncation and integration with the
+OpenAI API (mocked) work as expected.
+"""
+
 import pytest
 import os
 from unittest.mock import MagicMock, patch
@@ -6,13 +14,18 @@ from src.api.routes.search import search_properties, PropertySearchRequest
 from src.models.property import Property
 from src.models.user import User
 
-# Set a dummy API key for testing
-os.environ["OPENAI_API_KEY"] = "test"
+# Set a dummy OpenAI API key to prevent errors during test initialization.
+os.environ["OPENAI_API_KEY"] = "test_api_key"
 
 @pytest.mark.asyncio
 @patch('openai.embeddings.create')
 async def test_search_properties_truncates_description(mock_openai_create):
+    """
+    Verifies that the `search_properties` endpoint correctly truncates long
+    property descriptions in its results.
+    """
     # Arrange
+    # Mock the OpenAI client's response for generating query embeddings.
     mock_response = MagicMock()
     mock_embedding = [0.1] * 1536
     mock_response.data = [MagicMock(embedding=mock_embedding)]
@@ -29,12 +42,16 @@ async def test_search_properties_truncates_description(mock_openai_create):
         area_sqm=50,
         telegram_channel_id=123,
         telegram_message_id=456,
-        embedding=[0.1] * 1536
+        embedding=[0.1] * 1536  # Mock embedding for the property
     )
 
+    # Mock the database session and the complex query chain for search.
     mock_db = MagicMock()
-    # Mock the query for the property and the distance calculation
-    mock_db.query.return_value.order_by.return_value.limit.return_value.all.return_value = [(mock_prop, 0.1)]
+    mock_query_result = [(mock_prop, 0.1)] # (Property, distance)
+    mock_db.query.return_value.order_by.return_value.limit.return_value.all.return_value = mock_query_result
+    # Also mock the favorites query to return an empty set
+    mock_db.query.return_value.filter.return_value.all.return_value = []
+
 
     mock_user = User(id=uuid4(), telegram_user_id=12345, username="testuser")
 
@@ -45,5 +62,5 @@ async def test_search_properties_truncates_description(mock_openai_create):
 
     # Assert
     assert len(response.results) == 1
-    assert len(response.results[0].description) <= 203
+    assert len(response.results[0].description) == 203 # 200 chars + "..."
     assert response.results[0].description.endswith("...")

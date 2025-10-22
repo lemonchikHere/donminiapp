@@ -9,3 +9,6 @@ aiogram
 alembic
 python-dotenv
 httpx
+pytest
+pytest-asyncio
+Pillow
