@@ -53,7 +53,7 @@ async def search_properties(
     full_query_text = (
         f"{search_request.transaction_type or ''} "
         f"{' '.join(search_request.property_types or [])} "
-        f"{str(search_request.rooms) + ' комнат' if search_request.rooms is not None else ''} "
+        f"{str(search_request.rooms) + ' комнат' if search_request.rooms else ''} "
         f"{search_request.district or ''} "
         f"{search_request.query_text or ''}"
     ).strip()
@@ -108,7 +108,7 @@ async def search_properties(
             rooms=prop.rooms,
             area_sqm=prop.area_sqm,
             address=prop.address,
-            description=prop.description[:200] if prop.description else "",
+            description=prop.description[:200] + '...' if prop.description and len(prop.description) > 200 else prop.description,
             photos=prop.photos,
             similarity_score=round(1 - distance, 2) if distance is not None else None,
             telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",
