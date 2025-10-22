@@ -70,7 +70,7 @@ def test_extract_no_relevant_data(extractor):
     ("Продам 2-комн. квартиру", 2),
     ("Сдаю 1-к. апартаменты", 1),
     ("4 bedroom house for sale", 4),
-    ("студия", None), # Current regex doesn't handle 'студия'
+    ("студия", None),
 ])
 def test_extract_various_rooms_formats(extractor, rooms_text, expected_rooms):
     """Tests different text formats for room numbers."""
