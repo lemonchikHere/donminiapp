@@ -669,3 +669,55 @@ body {
   font-size: 20px;
   cursor: pointer;
 }
+
+/* Skeleton Styles */
+.skeleton .skeleton-anim {
+  background: linear-gradient(90deg, var(--tg-border-light) 25%, var(--tg-bg-secondary) 50%, var(--tg-border-light) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+.skeleton-text {
+  height: 1em;
+  border-radius: 4px;
+  margin-bottom: 0.5em;
+}
+
+.skeleton-text.short {
+  width: 40%;
+}
+
+.skeleton-text.long {
+  width: 100%;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Empty State Styles */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  margin-top: 20px;
+}
+
+.empty-state__icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state__title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.empty-state__message {
+  color: var(--tg-secondary-text);
+}
