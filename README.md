@@ -1,2 +1,0 @@
-# donminiapp
-app for tg

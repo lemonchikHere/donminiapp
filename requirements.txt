@@ -1,0 +1,10 @@
+telethon
+psycopg2-binary
+pgvector
+fastapi
+uvicorn[standard]
+sqlalchemy
+openai
+aiogram
+alembic
+python-dotenv
