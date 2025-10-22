@@ -70,7 +70,7 @@ def test_extract_no_relevant_data(extractor):
     ("Продам 2-комн. квартиру", 2),
     ("Сдаю 1-к. апартаменты", 1),
     ("4 bedroom house for sale", 4),
-    ("студия", None),
+    ("студия", 0), # Now correctly extracts 'студия' as 0
 ])
 def test_extract_various_rooms_formats(extractor, rooms_text, expected_rooms):
     """Tests different text formats for room numbers."""
@@ -169,3 +169,24 @@ def test_generate_embedding_retry_success(mock_openai_create, mock_sleep, extrac
 
     assert mock_openai_create.call_count == 2
     assert embedding == mock_embedding
+
+@pytest.mark.parametrize("rooms_text, expected_rooms", [
+    ("Продам студию", 0),
+    ("Сдаю однокомнатную квартиру", 1),
+    ("Ищу двухкомнатную", 2),
+    ("трехкомнатная", 3),
+])
+def test_extract_rooms_from_text(extractor, rooms_text, expected_rooms):
+    """Tests fuzzy extraction of room counts from text."""
+    result = extractor.extract(rooms_text)
+    assert result['rooms'] == expected_rooms
+
+@pytest.mark.parametrize("price_text, expected_price", [
+    ("Цена договорная", None),
+    ("Возможен торг", None),
+    ("Цена 50000$, торг уместен", 50000.0), # Should still extract the price
+])
+def test_extract_price_non_numeric(extractor, price_text, expected_price):
+    """Tests handling of non-numeric price texts."""
+    result = extractor.extract(price_text)
+    assert result['price_usd'] == expected_price

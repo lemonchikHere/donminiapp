@@ -19,6 +19,14 @@ class PropertyDataExtractor:
         'commercial': re.compile(r'(коммерч|офис|магазин|торгов)', re.IGNORECASE)
     }
 
+    TEXT_TO_ROOMS = {
+        'студи': 0,
+        'однокомнатн': 1, '1-комнатн': 1,
+        'двухкомнатн': 2, '2-комнатн': 2,
+        'трехкомнатн': 3, '3-комнатн': 3,
+        'четырехкомнатн': 4, '4-комнатн': 4,
+    }
+
     ROOMS_PATTERNS = [
         re.compile(r'(\d+)[-\s]?комн', re.IGNORECASE),
         re.compile(r'(\d+)[-\s]?к\.', re.IGNORECASE),
@@ -52,11 +60,20 @@ class PropertyDataExtractor:
         return None
 
     def _extract_rooms(self, text: str) -> Optional[int]:
-        """Extracts the number of rooms."""
+        """Extracts the number of rooms using both text and regex."""
+        text_lower = text.lower().replace('ё', 'е')
+        # 1. Try to find a text value first
+        for key, value in self.TEXT_TO_ROOMS.items():
+            if key in text_lower:
+                return value
+
+        # 2. If no text value, try regex
         for pattern in self.ROOMS_PATTERNS:
-            match = pattern.search(text)
+            match = pattern.search(text_lower)
             if match:
-                return int(match.group(1))
+                rooms = int(match.group(1))
+                if 0 <= rooms <= 10: # Basic validation
+                    return rooms
         return None
 
     def _extract_area(self, text: str) -> Optional[float]:
@@ -72,17 +89,26 @@ class PropertyDataExtractor:
         return None
 
     def _extract_price(self, text: str) -> Optional[float]:
-        """Extracts price and converts to USD."""
-        match = self.PRICE_USD_PATTERN.search(text)
-        if match:
-            price_str = match.group(1).replace(',', '').replace(' ', '')
-            return float(price_str)
+        """Extracts price, handles non-numeric values, and converts to USD."""
+        # First, try to find a numeric price
+        match_usd = self.PRICE_USD_PATTERN.search(text)
+        if match_usd:
+            price_str = match_usd.group(1).replace(',', '').replace(' ', '')
+            if price_str.isdigit():
+                return float(price_str)
 
-        match = self.PRICE_RUB_PATTERN.search(text)
-        if match:
-            price_rub = float(match.group(1).replace(',', '').replace(' ', ''))
-            # TODO: Use a real-time exchange rate API
-            return round(price_rub / 90.0, 2)
+        match_rub = self.PRICE_RUB_PATTERN.search(text)
+        if match_rub:
+            price_rub_str = match_rub.group(1).replace(',', '').replace(' ', '')
+            if price_rub_str.isdigit():
+                price_rub = float(price_rub_str)
+                # TODO: Use a real-time exchange rate API
+                return round(price_rub / 90.0, 2)
+
+        # If no numeric price is found, check for keywords
+        text_lower = text.lower()
+        if any(word in text_lower for word in ['договор', 'торг']):
+            return None
 
         return None
 
