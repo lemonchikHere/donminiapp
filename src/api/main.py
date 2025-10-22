@@ -1,20 +1,12 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import search, properties, favorites, appointments
-import os
 
 app = FastAPI(
     title="Don Estate API",
     description="API for the Don Estate Telegram Mini App",
     version="1.0.0"
 )
-
-# Create media directory if it doesn't exist
-if not os.path.exists("media"):
-    os.makedirs("media")
-
-app.mount("/media", StaticFiles(directory="media"), name="media")
 
 # CORS Middleware
 app.add_middleware(

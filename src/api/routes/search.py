@@ -9,7 +9,6 @@ from src.models.property import Property
 from src.models.user import Favorite, User
 from src.api.dependencies import get_current_user
 from src.config import settings
-from src.api.schemas import PropertyResponse, SearchResponse
 
 openai.api_key = settings.OPENAI_API_KEY
 
@@ -23,6 +22,23 @@ class PropertySearchRequest(BaseModel):
     budget_min: Optional[float] = None
     budget_max: Optional[float] = None
     query_text: Optional[str] = ""
+
+class PropertyResponse(BaseModel):
+    id: str
+    title: str
+    price_usd: Optional[float]
+    rooms: Optional[int]
+    area_sqm: Optional[float]
+    address: Optional[str]
+    description: Optional[str]
+    photos: Optional[List[str]]
+    similarity_score: Optional[float]
+    telegram_link: str
+    is_favorite: bool
+
+class SearchResponse(BaseModel):
+    results: List[PropertyResponse]
+    total: int
 
 @router.post("/search", response_model=SearchResponse)
 async def search_properties(
@@ -92,7 +108,7 @@ async def search_properties(
             rooms=prop.rooms,
             area_sqm=prop.area_sqm,
             address=prop.address,
-            description=prop.description[:200] + '...' if prop.description and len(prop.description) > 200 else prop.description,
+            description=prop.description[:200] if prop.description else "",
             photos=prop.photos,
             similarity_score=round(1 - distance, 2) if distance is not None else None,
             telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",
