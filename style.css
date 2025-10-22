@@ -534,3 +534,28 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.map-screen {
+  padding: 0;
+  height: 100vh;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+}
+
+.map-back-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 101;
+}
+
+.map-location-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 101;
+}

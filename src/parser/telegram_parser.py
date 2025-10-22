@@ -6,6 +6,7 @@ from src.database import get_db
 from src.models.property import Property
 from .data_extractor import PropertyDataExtractor
 from .media_handler import MediaHandler
+from src.services.geocoding_service import geocoding_service
 
 class TelegramChannelParser:
     def __init__(self):
@@ -69,10 +70,17 @@ class TelegramChannelParser:
         # 2. Download media
         media_paths = await self.media_handler.download_media(message, self.client)
 
-        # 3. Generate embedding
+        # 3. Geocode address
+        latitude, longitude = None, None
+        if extracted_data.get('address'):
+            coords = await geocoding_service.get_coordinates(extracted_data['address'])
+            if coords:
+                latitude, longitude = coords
+
+        # 4. Generate embedding
         embedding = self.extractor.generate_embedding(extracted_data)
 
-        # 4. Save to database
+        # 5. Save to database
         new_property = Property(
             telegram_message_id=message.id,
             telegram_channel_id=self.channel.id,
@@ -84,6 +92,8 @@ class TelegramChannelParser:
             floor=extracted_data.get('floor'),
             price_usd=extracted_data.get('price_usd'),
             address=extracted_data.get('address'),
+            latitude=latitude,
+            longitude=longitude,
             description=extracted_data.get('description'),
             raw_text=extracted_data.get('raw_text'),
             embedding=embedding,

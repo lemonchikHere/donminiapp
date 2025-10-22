@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import search, properties, favorites, appointments
+from .routes import search, properties, favorites, appointments, map
 
 app = FastAPI(
     title="Don Estate API",
@@ -22,6 +22,7 @@ app.include_router(search.router)
 app.include_router(properties.router)
 app.include_router(favorites.router)
 app.include_router(appointments.router)
+app.include_router(map.router)
 
 @app.get("/")
 async def root():

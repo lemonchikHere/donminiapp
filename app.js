@@ -37,6 +37,7 @@ const DonEstateApp = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [favorites, setFavorites] = useState([]);
+  const [mapProperties, setMapProperties] = useState([]);
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
@@ -295,7 +296,7 @@ const DonEstateApp = () => {
 
     try {
       const tg = window.Telegram.WebApp;
-      const response = await fetch('http://localhost:8000/api/search', {
+      const response = await fetch('/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -382,7 +383,7 @@ const DonEstateApp = () => {
   const fetchFavorites = async () => {
     try {
       const tg = window.Telegram.WebApp;
-      const response = await fetch('http://localhost:8000/api/favorites/', {
+      const response = await fetch('/api/favorites/', {
         headers: {
           'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
         },
@@ -401,8 +402,8 @@ const DonEstateApp = () => {
       const tg = window.Telegram.WebApp;
       const method = isFavorite ? 'POST' : 'DELETE';
       const url = isFavorite
-        ? 'http://localhost:8000/api/favorites/'
-        : `http://localhost:8000/api/favorites/${propertyId}`;
+        ? '/api/favorites/'
+        : `/api/favorites/${propertyId}`;
 
       const response = await fetch(url, {
         method: method,
@@ -476,6 +477,12 @@ const DonEstateApp = () => {
             onClick={() => setCurrentScreen('favorites')}
           >
             ❤️ Избранное
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setCurrentScreen('map')}
+          >
+            🗺️ Карта
           </button>
         </div>
       </div>
@@ -561,6 +568,86 @@ const DonEstateApp = () => {
       </div>
     </div>
   );
+
+  const MapScreen = () => {
+    const mapRef = useRef(null);
+    const mapInstance = useRef(null);
+
+    const handleMyLocation = () => {
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.requestLocation((loc) => {
+          if (mapInstance.current) {
+            const userCoords = [loc.latitude, loc.longitude];
+            mapInstance.current.setCenter(userCoords, 14);
+            // Add a placemark for the user's location
+            const userPlacemark = new ymaps.Placemark(userCoords, {
+              hintContent: 'Вы здесь'
+            }, {
+              preset: 'islands#geolocationIcon',
+              iconColor: '#ff0000'
+            });
+            mapInstance.current.geoObjects.add(userPlacemark);
+          }
+        });
+      }
+    };
+
+    useEffect(() => {
+      const initMap = () => {
+        if (!mapRef.current) return;
+
+        mapInstance.current = new ymaps.Map(mapRef.current, {
+          center: [48.015, 37.802], // Donetsk center
+          zoom: 12
+        });
+
+        // Fetch properties and add placemarks
+        fetchMapProperties(mapInstance.current);
+      };
+
+      ymaps.ready(initMap);
+    }, []);
+
+    const fetchMapProperties = async (map) => {
+      try {
+        const response = await fetch('/api/map/properties');
+        if (!response.ok) throw new Error('Failed to fetch map properties');
+        const properties = await response.json();
+        setMapProperties(properties);
+
+        properties.forEach(prop => {
+          const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
+            balloonContentHeader: prop.title,
+            balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
+            hintContent: prop.title
+          });
+          map.geoObjects.add(placemark);
+        });
+
+      } catch (error) {
+        console.error(error);
+        setModal({ type: 'error', message: 'Не удалось загрузить объекты на карте.' });
+      }
+    };
+
+    return (
+      <div className="screen map-screen">
+        <div id="map" ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
+        <button
+          className="btn btn-back map-back-btn"
+          onClick={() => setCurrentScreen('main')}
+        >
+          ◀ Назад
+        </button>
+        <button
+          className="btn btn-primary map-location-btn"
+          onClick={handleMyLocation}
+        >
+          📍 Мое местоположение
+        </button>
+      </div>
+    );
+  };
 
   const SearchScreen = () => (
     <div className="screen">
@@ -1019,6 +1106,7 @@ const DonEstateApp = () => {
       case 'offer': return <OfferScreen />;
       case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} />;
+      case 'map': return <MapScreen />;
       default: return <MainScreen />;
     }
   };
