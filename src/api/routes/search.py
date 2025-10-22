@@ -53,7 +53,7 @@ async def search_properties(
     full_query_text = (
         f"{search_request.transaction_type or ''} "
         f"{' '.join(search_request.property_types or [])} "
-        f"{str(search_request.rooms) + ' комнат' if search_request.rooms else ''} "
+        f"{str(search_request.rooms) + ' комнат' if search_request.rooms is not None else ''} "
         f"{search_request.district or ''} "
         f"{search_request.query_text or ''}"
     ).strip()
