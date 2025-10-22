@@ -35,7 +35,7 @@ async def get_property_details(
         rooms=prop.rooms,
         area_sqm=prop.area_sqm,
         address=prop.address,
-        description=prop.description,
+        description=prop.description[:200] + '...' if prop.description and len(prop.description) > 200 else prop.description,
         photos=prop.photos,
         similarity_score=None,
         telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",
