@@ -1145,3 +1145,33 @@ body {
 .required {
   color: var(--tg-error);
 }
+
+.progress-bar-container {
+  width: 100%;
+  background-color: var(--tg-bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  height: 24px;
+  border: 1px solid var(--tg-border-light);
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: var(--tg-success);
+  border-radius: 8px;
+  transition: width 0.3s ease-in-out;
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tg-text-light);
+  mix-blend-mode: exclusion;
+  filter: invert(1);
+}

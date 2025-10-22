@@ -1,4 +1,4 @@
-const { useState, useCallback, useRef } = React;
+const { useState, useCallback, useRef, useEffect } = React;
 
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
@@ -37,46 +37,159 @@ const DonEstateApp = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
+  const [searchProgress, setSearchProgress] = useState(0);
+  const [offerProgress, setOfferProgress] = useState(0);
+
+  const ProgressBar = ({ progress }) => (
+    <div className="progress-bar-container">
+      <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+      <div className="progress-text">{Math.round(progress)}%</div>
+    </div>
+  );
+
+  useEffect(() => {
+    if (window.Telegram && window.Telegram.WebApp) {
+      const tg = window.Telegram.WebApp;
+
+      const applyTheme = () => {
+        if (tg.colorScheme === 'dark') {
+          document.documentElement.setAttribute('data-color-scheme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-color-scheme', 'light');
+        }
+      };
+
+      tg.onEvent('themeChanged', applyTheme);
+
+      applyTheme(); // Apply theme on initial load
+
+      // Cleanup
+      return () => {
+        tg.offEvent('themeChanged', applyTheme);
+      };
+    }
+  }, []);
+
+  // Load form data from localStorage on initial render
+  useEffect(() => {
+    try {
+      const savedSearchForm = localStorage.getItem('don_estate_search_form');
+      if (savedSearchForm) {
+        setSearchForm(JSON.parse(savedSearchForm));
+      }
+
+      const savedOfferForm = localStorage.getItem('don_estate_offer_form');
+      if (savedOfferForm) {
+        // We don't restore photos/video as they are file objects
+        const parsedOfferForm = JSON.parse(savedOfferForm);
+        delete parsedOfferForm.photos;
+        delete parsedOfferForm.video;
+        setOfferForm(prev => ({ ...prev, ...parsedOfferForm }));
+      }
+    } catch (error) {
+      console.error("Failed to load form data from localStorage", error);
+    }
+  }, []);
+
+  // Save search form data to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
+    } catch (error) {
+      console.error("Failed to save search form data to localStorage", error);
+    }
+  }, [searchForm]);
+
+  // Save offer form data to localStorage (excluding files)
+  useEffect(() => {
+    try {
+      const { photos, video, ...formDataToSave } = offerForm;
+      localStorage.setItem('don_estate_offer_form', JSON.stringify(formDataToSave));
+    } catch (error) {
+      console.error("Failed to save offer form data to localStorage", error);
+    }
+  }, [offerForm]);
+
+  useEffect(() => {
+    const requiredFields = ['transactionType', 'propertyTypes', 'name', 'phone'];
+    const filledFields = requiredFields.filter(field => {
+      const value = searchForm[field];
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      return !!value;
+    }).length;
+
+    setSearchProgress((filledFields / requiredFields.length) * 100);
+  }, [searchForm]);
   
+  useEffect(() => {
+    const requiredFields = ['transactionType', 'propertyType', 'address', 'name', 'phone'];
+    const filledFields = requiredFields.filter(field => !!offerForm[field]).length;
+
+    setOfferProgress((filledFields / requiredFields.length) * 100);
+  }, [offerForm]);
+
   const validatePhone = (phone) => {
     const pattern = /^[+]?[0-9]{10,15}$/;
     return pattern.test(phone.replace(/[\s\-\(\)]/g, ''));
   };
+
+  const validateField = (form, name, value) => {
+    const currentForm = form === 'search' ? searchForm : offerForm;
+
+    switch (name) {
+      case 'transactionType':
+        return !value ? 'Выберите тип сделки' : null;
+      case 'propertyTypes':
+        return value.length === 0 ? 'Выберите хотя бы один тип недвижимости' : null;
+      case 'name':
+        return !value.trim() ? 'Введите ваше имя' : null;
+      case 'phone':
+        if (!value.trim()) return 'Введите номер телефона';
+        if (!validatePhone(value)) return 'Введите корректный номер телефона';
+        return null;
+      case 'budgetMax':
+        if (currentForm.budgetMin && value && parseFloat(value) <= parseFloat(currentForm.budgetMin)) {
+          return 'Максимальная сумма должна быть больше минимальной';
+        }
+        return null;
+      case 'propertyType':
+        return !value ? 'Выберите тип недвижимости' : null;
+      case 'address':
+        return !value.trim() ? 'Введите адрес' : null;
+      default:
+        return null;
+    }
+  };
+
+  const handleBlur = (form) => (e) => {
+    const { name, value } = e.target;
+    const error = validateField(form, name, value);
+    setErrors(prev => ({ ...prev, [name]: error }));
+  };
   
   const validateSearchForm = () => {
+    const fieldsToValidate = ['transactionType', 'propertyTypes', 'name', 'phone', 'budgetMax'];
     const newErrors = {};
-    
-    if (!searchForm.transactionType) newErrors.transactionType = 'Выберите тип сделки';
-    if (searchForm.propertyTypes.length === 0) newErrors.propertyTypes = 'Выберите хотя бы один тип недвижимости';
-    if (!searchForm.name.trim()) newErrors.name = 'Введите ваше имя';
-    if (!searchForm.phone.trim()) {
-      newErrors.phone = 'Введите номер телефона';
-    } else if (!validatePhone(searchForm.phone)) {
-      newErrors.phone = 'Введите корректный номер телефона';
-    }
-    
-    if (searchForm.budgetMin && searchForm.budgetMax) {
-      if (parseFloat(searchForm.budgetMax) <= parseFloat(searchForm.budgetMin)) {
-        newErrors.budgetMax = 'Максимальная сумма должна быть больше минимальной';
+    fieldsToValidate.forEach(field => {
+      const error = validateField('search', field, searchForm[field]);
+      if (error) {
+        newErrors[field] = error;
       }
-    }
-    
+    });
     return newErrors;
   };
   
   const validateOfferForm = () => {
+    const fieldsToValidate = ['transactionType', 'propertyType', 'address', 'name', 'phone'];
     const newErrors = {};
-    
-    if (!offerForm.transactionType) newErrors.transactionType = 'Выберите тип сделки';
-    if (!offerForm.propertyType) newErrors.propertyType = 'Выберите тип недвижимости';
-    if (!offerForm.address.trim()) newErrors.address = 'Введите адрес';
-    if (!offerForm.name.trim()) newErrors.name = 'Введите ваше имя';
-    if (!offerForm.phone.trim()) {
-      newErrors.phone = 'Введите номер телефона';
-    } else if (!validatePhone(offerForm.phone)) {
-      newErrors.phone = 'Введите корректный номер телефона';
-    }
-    
+    fieldsToValidate.forEach(field => {
+      const error = validateField('offer', field, offerForm[field]);
+      if (error) {
+        newErrors[field] = error;
+      }
+    });
     return newErrors;
   };
   
@@ -200,6 +313,7 @@ const DonEstateApp = () => {
           name: '',
           phone: ''
         });
+        localStorage.removeItem('don_estate_search_form');
         setModal(null);
         setCurrentScreen('main');
       }, 2000);
@@ -247,6 +361,7 @@ const DonEstateApp = () => {
           photos: [],
           video: null
         });
+        localStorage.removeItem('don_estate_offer_form');
         setModal(null);
         setCurrentScreen('main');
       }, 2000);
@@ -303,6 +418,7 @@ const DonEstateApp = () => {
         </div>
         
         <form className="form" onSubmit={handleSearchSubmit}>
+          <ProgressBar progress={searchProgress} />
           <div className="form-group">
             <label className="form-label">Тип сделки <span className="required">*</span></label>
             <div className="radio-group">
@@ -312,7 +428,11 @@ const DonEstateApp = () => {
                   name="transactionType"
                   value="Купить"
                   checked={searchForm.transactionType === 'Купить'}
-                  onChange={(e) => setSearchForm(prev => ({ ...prev, transactionType: e.target.value }))}
+                  onChange={(e) => {
+                    setSearchForm(prev => ({ ...prev, transactionType: e.target.value }));
+                    setErrors(prev => ({ ...prev, transactionType: null }));
+                  }}
+                  onBlur={handleBlur('search')}
                 />
                 Купить
               </label>
@@ -322,7 +442,11 @@ const DonEstateApp = () => {
                   name="transactionType"
                   value="Снять"
                   checked={searchForm.transactionType === 'Снять'}
-                  onChange={(e) => setSearchForm(prev => ({ ...prev, transactionType: e.target.value }))}
+                  onChange={(e) => {
+                    setSearchForm(prev => ({ ...prev, transactionType: e.target.value }));
+                    setErrors(prev => ({ ...prev, transactionType: null }));
+                  }}
+                  onBlur={handleBlur('search')}
                 />
                 Снять
               </label>
@@ -337,8 +461,13 @@ const DonEstateApp = () => {
                 <label key={type} className="checkbox-option">
                   <input
                     type="checkbox"
+                    name="propertyTypes"
                     checked={searchForm.propertyTypes.includes(type)}
-                    onChange={(e) => handlePropertyTypeChange(type, e.target.checked)}
+                    onChange={(e) => {
+                      handlePropertyTypeChange(type, e.target.checked);
+                      setErrors(prev => ({ ...prev, propertyTypes: null }));
+                    }}
+                    onBlur={handleBlur('search')}
                   />
                   {type}
                 </label>
@@ -388,9 +517,14 @@ const DonEstateApp = () => {
                 <input
                   type="number"
                   className="form-input"
+                  name="budgetMax"
                   placeholder="До $"
                   value={searchForm.budgetMax}
-                  onChange={(e) => setSearchForm(prev => ({ ...prev, budgetMax: e.target.value }))}
+                  onChange={(e) => {
+                    setSearchForm(prev => ({ ...prev, budgetMax: e.target.value }));
+                    setErrors(prev => ({ ...prev, budgetMax: null }));
+                  }}
+                  onBlur={handleBlur('search')}
                 />
                 {errors.budgetMax && <div className="error-message">{errors.budgetMax}</div>}
               </div>
@@ -412,8 +546,13 @@ const DonEstateApp = () => {
             <input
               type="text"
               className="form-input"
+              name="name"
               value={searchForm.name}
-              onChange={(e) => setSearchForm(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => {
+                setSearchForm(prev => ({ ...prev, name: e.target.value }));
+                setErrors(prev => ({ ...prev, name: null }));
+              }}
+              onBlur={handleBlur('search')}
             />
             {errors.name && <div className="error-message">{errors.name}</div>}
           </div>
@@ -423,9 +562,14 @@ const DonEstateApp = () => {
             <input
               type="tel"
               className="form-input"
+              name="phone"
               placeholder="+7 (XXX) XXX-XX-XX"
               value={searchForm.phone}
-              onChange={(e) => setSearchForm(prev => ({ ...prev, phone: e.target.value }))}
+              onChange={(e) => {
+                setSearchForm(prev => ({ ...prev, phone: e.target.value }));
+                setErrors(prev => ({ ...prev, phone: null }));
+              }}
+              onBlur={handleBlur('search')}
             />
             {errors.phone && <div className="error-message">{errors.phone}</div>}
           </div>
@@ -458,26 +602,35 @@ const DonEstateApp = () => {
         </div>
         
         <form className="form" onSubmit={handleOfferSubmit}>
+          <ProgressBar progress={offerProgress} />
           <div className="form-group">
             <label className="form-label">Тип сделки <span className="required">*</span></label>
             <div className="radio-group">
               <label className="radio-option">
                 <input
                   type="radio"
-                  name="offerTransactionType"
+                  name="transactionType"
                   value="Продать"
                   checked={offerForm.transactionType === 'Продать'}
-                  onChange={(e) => setOfferForm(prev => ({ ...prev, transactionType: e.target.value }))}
+                  onChange={(e) => {
+                    setOfferForm(prev => ({ ...prev, transactionType: e.target.value }));
+                    setErrors(prev => ({ ...prev, transactionType: null }));
+                  }}
+                  onBlur={handleBlur('offer')}
                 />
                 Продать
               </label>
               <label className="radio-option">
                 <input
                   type="radio"
-                  name="offerTransactionType"
+                  name="transactionType"
                   value="Сдать"
                   checked={offerForm.transactionType === 'Сдать'}
-                  onChange={(e) => setOfferForm(prev => ({ ...prev, transactionType: e.target.value }))}
+                  onChange={(e) => {
+                    setOfferForm(prev => ({ ...prev, transactionType: e.target.value }));
+                    setErrors(prev => ({ ...prev, transactionType: null }));
+                  }}
+                  onBlur={handleBlur('offer')}
                 />
                 Сдать
               </label>
@@ -489,8 +642,13 @@ const DonEstateApp = () => {
             <label className="form-label">Тип недвижимости <span className="required">*</span></label>
             <select 
               className="form-select"
+              name="propertyType"
               value={offerForm.propertyType}
-              onChange={(e) => setOfferForm(prev => ({ ...prev, propertyType: e.target.value }))}
+              onChange={(e) => {
+                setOfferForm(prev => ({ ...prev, propertyType: e.target.value }));
+                setErrors(prev => ({ ...prev, propertyType: null }));
+              }}
+              onBlur={handleBlur('offer')}
             >
               <option value="">Выберите тип</option>
               {['Квартира', 'Дом', 'Коммерческая недвижимость'].map(type => (
@@ -505,9 +663,14 @@ const DonEstateApp = () => {
             <input
               type="text"
               className="form-input"
+              name="address"
               placeholder="Улица, дом, квартира"
               value={offerForm.address}
-              onChange={(e) => setOfferForm(prev => ({ ...prev, address: e.target.value }))}
+              onChange={(e) => {
+                setOfferForm(prev => ({ ...prev, address: e.target.value }));
+                setErrors(prev => ({ ...prev, address: null }));
+              }}
+              onBlur={handleBlur('offer')}
             />
             {errors.address && <div className="error-message">{errors.address}</div>}
           </div>
@@ -644,8 +807,13 @@ const DonEstateApp = () => {
             <input
               type="text"
               className="form-input"
+              name="name"
               value={offerForm.name}
-              onChange={(e) => setOfferForm(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => {
+                setOfferForm(prev => ({ ...prev, name: e.target.value }));
+                setErrors(prev => ({ ...prev, name: null }));
+              }}
+              onBlur={handleBlur('offer')}
             />
             {errors.name && <div className="error-message">{errors.name}</div>}
           </div>
@@ -655,9 +823,14 @@ const DonEstateApp = () => {
             <input
               type="tel"
               className="form-input"
+              name="phone"
               placeholder="+7 (XXX) XXX-XX-XX"
               value={offerForm.phone}
-              onChange={(e) => setOfferForm(prev => ({ ...prev, phone: e.target.value }))}
+              onChange={(e) => {
+                setOfferForm(prev => ({ ...prev, phone: e.target.value }));
+                setErrors(prev => ({ ...prev, phone: null }));
+              }}
+              onBlur={handleBlur('offer')}
             />
             {errors.phone && <div className="error-message">{errors.phone}</div>}
           </div>
