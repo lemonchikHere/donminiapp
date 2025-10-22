@@ -21,17 +21,8 @@ class PropertyDataExtractor:
     ROOMS_PATTERNS = [
         re.compile(r'(\d+)[-\s]?комн', re.IGNORECASE),
         re.compile(r'(\d+)[-\s]?к\.', re.IGNORECASE),
-        re.compile(r'(\d+)[-\s]?bedroom', re.IGNORECASE),
-        re.compile(r'(\d+)\s*комнат', re.IGNORECASE),
+        re.compile(r'(\d+)[-\s]?bedroom', re.IGNORECASE)
     ]
-
-    ROOMS_TEXT_PATTERNS = {
-        0: re.compile(r'студия', re.IGNORECASE),
-        1: re.compile(r'однокомнатная', re.IGNORECASE),
-        2: re.compile(r'двухкомнатная', re.IGNORECASE),
-        3: re.compile(r'трехкомнатная', re.IGNORECASE),
-        4: re.compile(r'четырехкомнатная', re.IGNORECASE),
-    }
 
     AREA_PATTERN = re.compile(r'(\d+[\.,]?\d*)\s*(м²|м2|кв\.м)', re.IGNORECASE)
     FLOOR_PATTERN = re.compile(r'(\d+/\d+)\s*эт', re.IGNORECASE)
@@ -65,11 +56,6 @@ class PropertyDataExtractor:
             match = pattern.search(text)
             if match:
                 return int(match.group(1))
-
-        for rooms, pattern in self.ROOMS_TEXT_PATTERNS.items():
-            if pattern.search(text):
-                return rooms
-
         return None
 
     def _extract_area(self, text: str) -> Optional[float]:

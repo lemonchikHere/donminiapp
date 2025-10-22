@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
-from .search import PropertyResponse, SearchResponse # Reuse the response models
+from src.api.schemas import PropertyResponse, SearchResponse
 from src.database import get_db
 from src.models.property import Property
 from src.models.user import Favorite, User

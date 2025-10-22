@@ -30,5 +30,6 @@ class Settings:
 
     # API
     API_SECRET_KEY = os.getenv("API_SECRET_KEY")
+    API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 settings = Settings()

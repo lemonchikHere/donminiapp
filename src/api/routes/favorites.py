@@ -8,7 +8,7 @@ from src.database import get_db
 from src.models.user import Favorite, User
 from src.models.property import Property
 from src.api.dependencies import get_current_user
-from .search import PropertyResponse
+from src.api.schemas import PropertyResponse
 
 router = APIRouter(prefix="/api/favorites", tags=["Favorites"])
 
