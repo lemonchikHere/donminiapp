@@ -20,6 +20,8 @@ class Property(Base):
     floor = Column(String(20))
     price_usd = Column(Float)
     address = Column(Text)
+    latitude = Column(Float)
+    longitude = Column(Float)
     description = Column(Text)
     raw_text = Column(Text)
 

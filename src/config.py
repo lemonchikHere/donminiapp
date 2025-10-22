@@ -31,4 +31,7 @@ class Settings:
     # API
     API_SECRET_KEY = os.getenv("API_SECRET_KEY")
 
+    # Yandex Maps
+    YANDEX_API_KEY = os.getenv("YANDEX_API_KEY")
+
 settings = Settings()
