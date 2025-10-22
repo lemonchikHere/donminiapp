@@ -72,8 +72,6 @@ class TelegramChannelParser:
         # 3. Generate embedding
         embedding = self.extractor.generate_embedding(extracted_data)
 
-        has_embedding = embedding is not None
-
         # 4. Save to database
         new_property = Property(
             telegram_message_id=message.id,
@@ -89,9 +87,6 @@ class TelegramChannelParser:
             description=extracted_data.get('description'),
             raw_text=extracted_data.get('raw_text'),
             embedding=embedding,
-            has_embedding=has_embedding,
-            search_enabled=has_embedding,
-            embedding_generation_failed=not has_embedding,
             photos=media_paths,
             video_url=media_paths[0] if media_paths and media_paths[0].endswith(('.mp4', '.mov')) else None,
             views_count=message.views or 0,

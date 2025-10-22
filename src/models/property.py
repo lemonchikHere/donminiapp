@@ -24,12 +24,7 @@ class Property(Base):
     raw_text = Column(Text)
 
     # Vector embedding for semantic search
-    embedding = Column(Vector(1536), nullable=True)
-
-    # Embedding metadata
-    has_embedding = Column(Boolean, default=False, nullable=False)
-    search_enabled = Column(Boolean, default=False, nullable=False)
-    embedding_generation_failed = Column(Boolean, default=False, nullable=False)
+    embedding = Column(Vector(1536))
 
     photos = Column(ARRAY(Text))
     video_url = Column(Text)
