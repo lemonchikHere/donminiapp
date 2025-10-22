@@ -484,6 +484,12 @@ const DonEstateApp = () => {
           >
             🗺️ Карта
           </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setCurrentScreen('chat')}
+          >
+            💬 Чат с ассистентом
+          </button>
         </div>
       </div>
     </div>
@@ -513,7 +519,28 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const ResultsScreen = ({ results, onToggleFavorite }) => (
+  const ResultsScreen = ({ results, onToggleFavorite, searchCriteria }) => {
+    const handleSaveSearch = async () => {
+      try {
+        const tg = window.Telegram.WebApp;
+        const response = await fetch('/api/searches/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+          },
+          body: JSON.stringify({ criteria: searchCriteria }),
+        });
+        if (!response.ok) throw new Error('Failed to save search');
+        setModal({ type: 'success', message: '✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.' });
+        setTimeout(() => setModal(null), 2000);
+      } catch (error) {
+        console.error(error);
+        setModal({ type: 'error', message: 'Не удалось сохранить поиск.' });
+      }
+    };
+
+    return (
     <div className="screen">
       <div className="container">
         <button
@@ -524,6 +551,9 @@ const DonEstateApp = () => {
         </button>
         <div className="header">
           <h1>Результаты поиска</h1>
+          <button className="btn btn-secondary" onClick={handleSaveSearch}>
+            💾 Сохранить поиск
+          </button>
         </div>
         <div className="results-list">
           {results.length > 0 ? (
@@ -645,6 +675,101 @@ const DonEstateApp = () => {
         >
           📍 Мое местоположение
         </button>
+      </div>
+    );
+  };
+
+  const ChatScreen = () => {
+    const [messages, setMessages] = useState([
+      { sender: 'bot', text: 'Здравствуйте! Чем могу помочь?' }
+    ]);
+    const [inputValue, setInputValue] = useState('');
+    const [isBotTyping, setIsBotTyping] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(scrollToBottom, [messages]);
+
+    const handleSendMessage = async (e) => {
+      e.preventDefault();
+      if (!inputValue.trim()) return;
+
+      const userMessage = { sender: 'user', text: inputValue };
+      setMessages(prev => [...prev, userMessage]);
+      setInputValue('');
+      setIsBotTyping(true);
+
+      try {
+        const response = await fetch('/api/chat/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: inputValue }),
+        });
+
+        if (!response.ok) throw new Error('Failed to get response from bot');
+
+        const botResponse = await response.json();
+
+        let botMessage = { sender: 'bot', text: 'Извините, я не смог обработать ваш запрос.' };
+        if (botResponse.type === 'text') {
+          botMessage.text = botResponse.content;
+        } else if (botResponse.type === 'property_list') {
+          botMessage.text = botResponse.summary;
+          botMessage.properties = botResponse.properties;
+        }
+
+        setMessages(prev => [...prev, botMessage]);
+
+      } catch (error) {
+        console.error(error);
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Произошла ошибка. Попробуйте еще раз.' }]);
+      } finally {
+        setIsBotTyping(false);
+      }
+    };
+
+    return (
+      <div className="screen chat-screen">
+        <div className="chat-header">
+          <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀</button>
+          <h1>AI Ассистент</h1>
+        </div>
+        <div className="chat-messages">
+          {messages.map((msg, index) => (
+            <div key={index} className={`chat-bubble ${msg.sender}`}>
+              <p>{msg.text}</p>
+              {msg.properties && (
+                <div className="chat-property-cards">
+                  {msg.properties.map(prop => (
+                    <div key={prop.id} className="chat-property-card">
+                      {prop.photo_url && <img src={prop.photo_url} />}
+                      <div className="chat-property-card-info">
+                        <b>{prop.title}</b>
+                        <p>{prop.address}</p>
+                        <p>${prop.price_usd?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {isBotTyping && <div className="chat-bubble bot typing">...</div>}
+          <div ref={messagesEndRef} />
+        </div>
+        <form className="chat-input-form" onSubmit={handleSendMessage}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Спросите что-нибудь..."
+            disabled={isBotTyping}
+          />
+          <button type="submit" disabled={isBotTyping}>➤</button>
+        </form>
       </div>
     );
   };
@@ -1104,9 +1229,10 @@ const DonEstateApp = () => {
     switch (currentScreen) {
       case 'search': return <SearchScreen />;
       case 'offer': return <OfferScreen />;
-      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} />;
+      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} />;
       case 'map': return <MapScreen />;
+      case 'chat': return <ChatScreen />;
       default: return <MainScreen />;
     }
   };

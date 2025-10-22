@@ -34,5 +34,14 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
+  bot:
+    build: .
+    command: python src/bot/main.py
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    restart: unless-stopped
+
 volumes:
   postgres_data:
