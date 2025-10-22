@@ -8,7 +8,7 @@ from src.database import get_db
 from src.models.user import Favorite, User
 from src.models.property import Property
 from src.api.dependencies import get_current_user
-from src.api.schemas import PropertyResponse
+from .search import PropertyResponse
 
 router = APIRouter(prefix="/api/favorites", tags=["Favorites"])
 
@@ -61,7 +61,7 @@ async def get_favorites(
             rooms=prop.rooms,
             area_sqm=prop.area_sqm,
             address=prop.address,
-            description=prop.description[:200] + '...' if prop.description and len(prop.description) > 200 else prop.description,
+            description=prop.description,
             photos=prop.photos,
             similarity_score=None,
             telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",

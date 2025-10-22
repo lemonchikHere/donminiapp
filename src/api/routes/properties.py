@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
-from src.api.schemas import PropertyResponse, SearchResponse
+from .search import PropertyResponse, SearchResponse # Reuse the response models
 from src.database import get_db
 from src.models.property import Property
 from src.models.user import Favorite, User
@@ -35,7 +35,7 @@ async def get_property_details(
         rooms=prop.rooms,
         area_sqm=prop.area_sqm,
         address=prop.address,
-        description=prop.description[:200] + '...' if prop.description and len(prop.description) > 200 else prop.description,
+        description=prop.description,
         photos=prop.photos,
         similarity_score=None,
         telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",
