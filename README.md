@@ -1,130 +1,130 @@
 # Don Estate Backend
 
-This repository contains the backend services for the **Don Estate** Telegram Mini App, a real estate platform for an agency in Donetsk. The system is designed to parse property listings from a Telegram channel, process and store them in a database, and provide a comprehensive API for a frontend client.
+Этот репозиторий содержит бэкенд-сервисы для **Don Estate** Telegram Mini App, платформы по недвижимости для агентства в Донецке. Система предназначена для парсинга объявлений о недвижимости из Telegram-канала, их обработки и сохранения в базе данных, а также предоставления комплексного API для фронтенд-клиента.
 
-## Table of Contents
+## Содержание
 
-- [Features](#features)
-- [Technology Stack](#technology-stack)
-- [System Architecture](#system-architecture)
-- [Project Structure](#project-structure)
-- [Setup and Installation](#setup-and-installation)
-  - [Prerequisites](#prerequisites)
-  - [Configuration](#configuration)
-  - [Running the Application](#running-the-application)
+- [Возможности](#возможности)
+- [Технологический стек](#технологический-стек)
+- [Архитектура системы](#архитектура-системы)
+- [Структура проекта](#структура-проекта)
+- [Настройка и установка](#настройка-и-установка)
+  - [Предварительные требования](#предварительные-требования)
+  - [Конфигурация](#конфигурация)
+  - [Запуск приложения](#запуск-приложения)
 - [API Endpoints](#api-endpoints)
-- [Running Tests](#running-tests)
+- [Запуск тестов](#запуск-тестов)
 
-## Features
+## Возможности
 
-- **Telegram Channel Parser**: A Telethon-based script that automatically parses new property listings from a specified Telegram channel.
-- **Data Extraction**: Uses regular expressions to extract key property details (price, area, rooms, etc.) from unstructured text.
-- **Geocoding**: Integrates with the Yandex Maps API to convert property addresses into geographic coordinates.
-- **Vector Embeddings**: Generates vector embeddings for property descriptions using OpenAI's `text-embedding-3-small` model for semantic search.
-- **FastAPI Backend**: A robust asynchronous API built with FastAPI to serve data to the frontend.
-- **Database**: Utilizes PostgreSQL with the `pgvector` extension for efficient geospatial and vector similarity queries.
-- **Dockerized Environment**: The entire application stack is containerized with Docker and managed via `docker-compose` for easy setup and deployment.
+- **Парсер Telegram-канала**: Скрипт на основе Telethon, который автоматически парсит новые объявления о недвижимости из указанного Telegram-канала.
+- **Извлечение данных**: Использует регулярные выражения для извлечения ключевых данных о недвижимости (цена, площадь, количество комнат и т.д.) из неструктурированного текста.
+- **Геокодирование**: Интегрируется с Yandex Maps API для преобразования адресов недвижимости в географические координаты.
+- **Векторные представления**: Генерирует векторные представления описаний недвижимости с помощью модели OpenAI `text-embedding-3-small` для семантического поиска.
+- **Бэкенд на FastAPI**: Надежный асинхронный API, построенный на FastAPI, для предоставления данных фронтенду.
+- **База данных**: Использует PostgreSQL с расширением `pgvector` для эффективных геопространственных и векторных запросов.
+- **Docker-окружение**: Весь стек приложения контейнеризирован с помощью Docker и управляется через `docker-compose` для легкой настройки и развертывания.
 
-## Technology Stack
+## Технологический стек
 
-- **Backend**: Python, FastAPI
-- **Telegram Parser**: Telethon
-- **Database**: PostgreSQL, SQLAlchemy, pgvector
-- **Vector Embeddings**: OpenAI API
-- **Geocoding**: Yandex Maps API
-- **Containerization**: Docker, Docker Compose
-- **Testing**: Pytest
+- **Бэкенд**: Python, FastAPI
+- **Парсер Telegram**: Telethon
+- **База данных**: PostgreSQL, SQLAlchemy, pgvector
+- **Векторные представления**: OpenAI API
+- **Геокодирование**: Yandex Maps API
+- **Контейнеризация**: Docker, Docker Compose
+- **Тестирование**: Pytest
 
-## System Architecture
+## Архитектура системы
 
-The application consists of three main services orchestrated by `docker-compose`:
+Приложение состоит из трех основных сервисов, управляемых `docker-compose`:
 
-1.  **Postgres (`postgres`)**: The database service, using an image with the `pgvector` extension pre-installed.
-2.  **Parser (`parser`)**: A standalone Python script that connects to Telegram via Telethon, parses messages, and saves them to the database.
-3.  **API (`api`)**: The FastAPI application that provides RESTful endpoints for the frontend to interact with the property data.
+1.  **Postgres (`postgres`)**: Сервис базы данных, использующий образ с предустановленным расширением `pgvector`.
+2.  **Парсер (`parser`)**: Автономный Python-скрипт, который подключается к Telegram через Telethon, парсит сообщения и сохраняет их в базу данных.
+3.  **API (`api`)**: Приложение FastAPI, которое предоставляет RESTful-эндпоинты для взаимодействия фронтенда с данными о недвижимости.
 
-## Project Structure
+## Структура проекта
 
 ```
 .
 ├── src/
-│   ├── api/                # FastAPI application code
-│   │   ├── routes/         # API endpoint routers
-│   │   ├── dependencies.py # FastAPI dependencies (e.g., user auth)
-│   │   └── main.py         # Main FastAPI app initialization
-│   ├── models/             # SQLAlchemy ORM models
-│   ├── parser/             # Telegram channel parser code
-│   │   ├── data_extractor.py # Logic for extracting data from text
-│   │   ├── media_handler.py  # Logic for downloading media
-│   │   └── telegram_parser.py# Main parser script
-│   ├── services/           # Business logic services (e.g., geocoding)
-│   ├── config.py           # Application configuration settings
-│   └── database.py         # Database session management
-├── tests/                  # Pytest tests for the application
-├── .env.example            # Example environment variables file
-├── app.js                  # Frontend JavaScript (React)
-├── docker-compose.yml      # Docker Compose configuration
-├── index.html              # Frontend HTML entry point
-└── requirements.txt        # Python dependencies
+│   ├── api/                # Код приложения FastAPI
+│   │   ├── routes/         # Роутеры API
+│   │   ├── dependencies.py # Зависимости FastAPI (например, аутентификация пользователя)
+│   │   └── main.py         # Инициализация основного приложения FastAPI
+│   ├── models/             # Модели SQLAlchemy ORM
+│   ├── parser/             # Код парсера Telegram-канала
+│   │   ├── data_extractor.py # Логика извлечения данных из текста
+│   │   ├── media_handler.py  # Логика загрузки медиа
+│   │   └── telegram_parser.py# Основной скрипт парсера
+│   ├── services/           # Сервисы бизнес-логики (например, геокодирование)
+│   ├── config.py           # Настройки конфигурации приложения
+│   └── database.py         # Управление сессиями базы данных
+├── tests/                  # Тесты Pytest для приложения
+├── .env.example            # Пример файла переменных окружения
+├── app.js                  # Фронтенд на JavaScript (React)
+├── docker-compose.yml      # Конфигурация Docker Compose
+├── index.html              # Точка входа для фронтенда
+└── requirements.txt        # Зависимости Python
 ```
 
-## Setup and Installation
+## Настройка и установка
 
-### Prerequisites
+### Предварительные требования
 
--   Docker and Docker Compose installed on your local machine.
--   A Telegram account with API credentials. You can get these from [my.telegram.org](https://my.telegram.org).
+-   Установленные Docker и Docker Compose на вашем локальном компьютере.
+-   Аккаунт Telegram с учетными данными API. Вы можете получить их на [my.telegram.org](https://my.telegram.org).
 
-### Configuration
+### Конфигурация
 
-1.  **Copy the example environment file**:
+1.  **Скопируйте пример файла окружения**:
     ```bash
     cp .env.example .env
     ```
 
-2.  **Edit the `.env` file** and fill in the required values:
-    -   `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_PHONE`: Your Telegram API credentials.
-    -   `TELEGRAM_CHANNEL`: The username or ID of the channel to parse (e.g., `@donetsk_estate`).
-    -   `DB_PASSWORD`: A secure password for the PostgreSQL database.
-    -   `OPENAI_API_KEY`: Your API key from OpenAI.
-    -   `YANDEX_API_KEY`: Your API key for the Yandex Maps Geocoding API.
-    -   `ADMIN_CHAT_ID`: The Telegram chat ID for receiving admin notifications (e.g., for new appointment requests).
+2.  **Отредактируйте файл `.env`** и укажите необходимые значения:
+    -   `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_PHONE`: Ваши учетные данные Telegram API.
+    -   `TELEGRAM_CHANNEL`: Имя пользователя или ID канала для парсинга (например, `@donetsk_estate`).
+    -   `DB_PASSWORD`: Надежный пароль для базы данных PostgreSQL.
+    -   `OPENAI_API_KEY`: Ваш API-ключ от OpenAI.
+    -   `YANDEX_API_KEY`: Ваш API-ключ для Yandex Maps Geocoding API.
+    -   `ADMIN_CHAT_ID`: ID чата в Telegram для получения уведомлений администратора (например, о новых заявках на просмотр).
 
-### Running the Application
+### Запуск приложения
 
-1.  **Build and start the services** using Docker Compose:
+1.  **Соберите и запустите сервисы** с помощью Docker Compose:
     ```bash
     docker-compose up --build
     ```
-    This command will build the images for the `parser` and `api` services and start all containers.
+    Эта команда соберет образы для сервисов `parser` и `api` и запустит все контейнеры.
 
-2.  **First Run**: The first time you run the `parser`, Telethon will ask you to enter your phone number, the code you receive on Telegram, and your two-factor authentication password if you have one set up. After you authenticate, a `.session` file will be created to keep you logged in.
+2.  **Первый запуск**: При первом запуске `parser` Telethon попросит вас ввести номер телефона, код, который вы получите в Telegram, и пароль двухфакторной аутентификации, если он у вас установлен. После аутентификации будет создан файл `.session`, чтобы вы оставались в системе.
 
-The API will be available at `http://localhost:8000`.
+API будет доступен по адресу `http://localhost:8000`.
 
 ## API Endpoints
 
-The main API endpoints are documented via Swagger UI, which is available at `http://localhost:8000/docs` when the API service is running.
+Основные эндпоинты API документированы через Swagger UI, который доступен по адресу `http://localhost:8000/docs` при запущенном сервисе API.
 
--   `POST /api/search`: Search for properties with filters and semantic query.
--   `GET /api/properties/{property_id}`: Get details for a single property.
--   `GET /api/properties/similar/{property_id}`: Find properties similar to a given one.
--   `GET /api/favorites/`: Get the current user's favorite properties.
--   `POST /api/favorites/`: Add a property to favorites.
--   `DELETE /api/favorites/{property_id}`: Remove a property from favorites.
--   `POST /api/appointments/`: Create a viewing appointment.
--   `GET /api/map/properties`: Get all properties with coordinates for map display.
+-   `POST /api/search`: Поиск недвижимости с фильтрами и семантическим запросом.
+-   `GET /api/properties/{property_id}`: Получение детальной информации о недвижимости.
+-   `GET /api/properties/similar/{property_id}`: Поиск похожих объектов недвижимости.
+-   `GET /api/favorites/`: Получение избранных объектов текущего пользователя.
+-   `POST /api/favorites/`: Добавление объекта в избранное.
+-   `DELETE /api/favorites/{property_id}`: Удаление объекта из избранного.
+-   `POST /api/appointments/`: Создание заявки на просмотр.
+-   `GET /api/map/properties`: Получение всех объектов с координатами для отображения на карте.
 
-## Running Tests
+## Запуск тестов
 
-To run the test suite, you can execute `pytest` inside the running `api` container.
+Для запуска тестов вы можете выполнить `pytest` внутри запущенного контейнера `api`.
 
-1.  Find the container ID for the API service:
+1.  Найдите ID контейнера для сервиса `api`:
     ```bash
     docker-compose ps
     ```
 
-2.  Run pytest inside the container:
+2.  Запустите pytest внутри контейнера:
     ```bash
     docker-compose exec api pytest
     ```
