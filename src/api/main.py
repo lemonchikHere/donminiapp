@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from .routes import search, properties, favorites, appointments, map, searches, config, offers # chat temporarily disabled
 
 app = FastAPI(
@@ -17,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include API routers
 app.include_router(search.router)
 app.include_router(properties.router)
 app.include_router(favorites.router)
@@ -28,6 +30,9 @@ app.include_router(searches.router)
 app.include_router(config.router)
 app.include_router(offers.router)
 
+# Serve Frontend
 @app.get("/")
-async def root():
-    return {"message": "Welcome to Don Estate API"}
+async def read_index():
+    return FileResponse('static/index.html')
+
+app.mount("/", StaticFiles(directory="static"), name="static")
