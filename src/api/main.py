@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import search, properties, favorites, appointments, map, chat, searches, config, offers
+from .routes import search, properties, favorites, appointments, map, searches, config, offers # chat temporarily disabled
 
 app = FastAPI(
     title="Don Estate API",
@@ -23,7 +23,7 @@ app.include_router(properties.router)
 app.include_router(favorites.router)
 app.include_router(appointments.router)
 app.include_router(map.router)
-app.include_router(chat.router)
+# app.include_router(chat.router)
 app.include_router(searches.router)
 app.include_router(config.router)
 app.include_router(offers.router)

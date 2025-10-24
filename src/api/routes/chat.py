@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from src.services.ai_assistant_service import get_ai_assistant_service, AIAssistantService
 
@@ -9,11 +10,31 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 class ChatRequest(BaseModel):
     message: str
 
-@router.post("/", response_model=Dict[str, Any])
+class PropertyInChat(BaseModel):
+    id: UUID
+    title: str
+    address: Optional[str] = None
+    price_usd: Optional[float] = None
+    photo_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ChatResponse(BaseModel):
+    type: str
+    content: Optional[str] = None
+    summary: Optional[str] = None
+    properties: Optional[List[PropertyInChat]] = []
+
+    class Config:
+        from_attributes = True
+
+
+@router.post("/")
 async def handle_chat_message(
     chat_request: ChatRequest,
     ai_assistant: AIAssistantService = Depends(get_ai_assistant_service)
-):
+) -> ChatResponse:
     """
     Receives a message from the Mini App chat interface,
     processes it with the AI assistant, and returns the response.

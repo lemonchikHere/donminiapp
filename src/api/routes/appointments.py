@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel
 from datetime import datetime
@@ -31,7 +31,7 @@ class AppointmentResponse(BaseModel):
     notes: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 async def send_telegram_notification(chat_id: int, message: str):
     # This is a placeholder for the actual notification logic using aiogram
