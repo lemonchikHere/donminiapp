@@ -1,10 +1,5 @@
 const { useState, useCallback, useRef, useEffect } = React;
 
-/**
- * Main application component for the Don Estate Telegram Mini App.
- * Manages state, navigation between screens, form handling, and API interactions.
- * @returns {JSX.Element} The rendered application.
- */
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [modal, setModal] = useState(null);
@@ -49,11 +44,6 @@ const DonEstateApp = () => {
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
 
-  /**
-   * A simple progress bar component.
-   * @param {{progress: number}} props - The component props.
-   * @returns {JSX.Element} The progress bar.
-   */
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
       <div className="progress-bar" style={{ width: `${progress}%` }}></div>
@@ -61,9 +51,6 @@ const DonEstateApp = () => {
     </div>
   );
 
-  /**
-   * Effect to handle Telegram Web App theme changes.
-   */
   useEffect(() => {
     // Dynamically load Yandex Maps API
     const fetchConfigAndLoadMap = async () => {
@@ -105,9 +92,7 @@ const DonEstateApp = () => {
     }
   }, []);
 
-  /**
-   * Effect to load form data from localStorage on initial render.
-   */
+  // Load form data from localStorage on initial render
   useEffect(() => {
     try {
       const savedSearchForm = localStorage.getItem('don_estate_search_form');
@@ -128,9 +113,7 @@ const DonEstateApp = () => {
     }
   }, []);
 
-  /**
-   * Effect to save search form data to localStorage on change.
-   */
+  // Save search form data to localStorage
   useEffect(() => {
     try {
       localStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
@@ -139,9 +122,7 @@ const DonEstateApp = () => {
     }
   }, [searchForm]);
 
-  /**
-   * Effect to save offer form data (excluding files) to localStorage on change.
-   */
+  // Save offer form data to localStorage (excluding files)
   useEffect(() => {
     try {
       const { photos, video, ...formDataToSave } = offerForm;
@@ -151,9 +132,6 @@ const DonEstateApp = () => {
     }
   }, [offerForm]);
 
-  /**
-   * Effect to calculate the completion progress of the search form.
-   */
   useEffect(() => {
     const requiredFields = ['transactionType', 'propertyTypes', 'name', 'phone'];
     const filledFields = requiredFields.filter(field => {
@@ -167,9 +145,6 @@ const DonEstateApp = () => {
     setSearchProgress((filledFields / requiredFields.length) * 100);
   }, [searchForm]);
 
-  /**
-   * Effect to calculate the completion progress of the offer form.
-   */
   useEffect(() => {
     const requiredFields = ['transactionType', 'propertyType', 'address', 'name', 'phone'];
     const filledFields = requiredFields.filter(field => !!offerForm[field]).length;
@@ -177,23 +152,11 @@ const DonEstateApp = () => {
     setOfferProgress((filledFields / requiredFields.length) * 100);
   }, [offerForm]);
 
-  /**
-   * Validates a phone number string.
-   * @param {string} phone - The phone number to validate.
-   * @returns {boolean} True if the phone number is valid.
-   */
   const validatePhone = (phone) => {
     const pattern = /^[+]?[0-9]{10,15}$/;
     return pattern.test(phone.replace(/[\s\-\(\)]/g, ''));
   };
 
-  /**
-   * Validates a single form field.
-   * @param {'search' | 'offer'} form - The name of the form.
-   * @param {string} name - The name of the field to validate.
-   * @param {*} value - The value of the field.
-   * @returns {string|null} An error message, or null if valid.
-   */
   const validateField = (form, name, value) => {
     const currentForm = form === 'search' ? searchForm : offerForm;
 
@@ -222,21 +185,12 @@ const DonEstateApp = () => {
     }
   };
 
-  /**
-   * Creates a blur event handler for a form field to trigger validation.
-   * @param {'search' | 'offer'} form - The form name.
-   * @returns {function(React.FocusEvent): void} The onBlur event handler.
-   */
   const handleBlur = (form) => (e) => {
     const { name, value } = e.target;
     const error = validateField(form, name, value);
     setErrors(prev => ({ ...prev, [name]: error }));
   };
 
-  /**
-   * Validates the entire search form.
-   * @returns {Object} An object containing any validation errors.
-   */
   const validateSearchForm = () => {
     const fieldsToValidate = ['transactionType', 'propertyTypes', 'name', 'phone', 'budgetMax'];
     const newErrors = {};
@@ -249,10 +203,6 @@ const DonEstateApp = () => {
     return newErrors;
   };
 
-  /**
-   * Validates the entire offer form.
-   * @returns {Object} An object containing any validation errors.
-   */
   const validateOfferForm = () => {
     const fieldsToValidate = ['transactionType', 'propertyType', 'address', 'name', 'phone'];
     const newErrors = {};
@@ -265,11 +215,6 @@ const DonEstateApp = () => {
     return newErrors;
   };
 
-  /**
-   * Formats file size in bytes to a human-readable string.
-   * @param {number} bytes - The file size in bytes.
-   * @returns {string} The formatted file size.
-   */
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -278,11 +223,6 @@ const DonEstateApp = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  /**
-   * Handles file uploads for photos and videos, including validation.
-   * @param {FileList} files - The list of files from the input.
-   * @param {'photos' | 'video'} type - The type of upload.
-   */
   const handleFileUpload = (files, type) => {
     const fileArray = Array.from(files);
 
@@ -333,10 +273,6 @@ const DonEstateApp = () => {
     }
   };
 
-  /**
-   * Removes a photo from the offer form state by its index.
-   * @param {number} index - The index of the photo to remove.
-   */
   const removePhoto = (index) => {
     setOfferForm(prev => ({
       ...prev,
@@ -344,28 +280,20 @@ const DonEstateApp = () => {
     }));
   };
 
-  /** Removes the video from the offer form state. */
   const removeVideo = () => {
     setOfferForm(prev => ({ ...prev, video: null }));
   };
 
-  /** Drag-and-drop event handler for drag over. */
   const handleDragOver = (e) => {
     e.preventDefault();
     e.currentTarget.classList.add('dragover');
   };
 
-  /** Drag-and-drop event handler for drag leave. */
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.currentTarget.classList.remove('dragover');
   };
 
-  /**
-   * Drag-and-drop event handler for drop.
-   * @param {React.DragEvent} e - The drop event.
-   * @param {'photos' | 'video'} type - The upload type.
-   */
   const handleDrop = (e, type) => {
     e.preventDefault();
     e.currentTarget.classList.remove('dragover');
@@ -373,10 +301,6 @@ const DonEstateApp = () => {
     handleFileUpload(files, type);
   };
 
-  /**
-   * Handles the submission of the search form.
-   * @param {React.FormEvent} e - The form submission event.
-   */
   const handleSearchSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateSearchForm();
@@ -429,10 +353,6 @@ const DonEstateApp = () => {
     }
   };
 
-  /**
-   * Handles the submission of the offer form.
-   * @param {React.FormEvent} e - The form submission event.
-   */
   const handleOfferSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateOfferForm();
@@ -482,9 +402,6 @@ const DonEstateApp = () => {
     }
   };
 
-  /**
-   * Fetches the user's favorite properties from the API.
-   */
   const fetchFavorites = async () => {
     setIsLoading(true);
     try {
@@ -505,11 +422,6 @@ const DonEstateApp = () => {
     }
   };
 
-  /**
-   * Toggles a property's favorite status via an API call.
-   * @param {string} propertyId - The ID of the property.
-   * @param {boolean} isFavorite - The desired new favorite state.
-   */
   const handleToggleFavorite = async (propertyId, isFavorite) => {
     try {
       const tg = window.Telegram.WebApp;
@@ -555,11 +467,6 @@ const DonEstateApp = () => {
     }
   };
 
-  /**
-   * Handles changes to the property type checkboxes in the search form.
-   * @param {string} type - The property type.
-   * @param {boolean} checked - The new checked state.
-   */
   const handlePropertyTypeChange = (type, checked) => {
     setSearchForm(prev => ({
       ...prev,
@@ -569,7 +476,6 @@ const DonEstateApp = () => {
     }));
   };
 
-  /** The main landing screen with navigation buttons. */
   const MainScreen = () => (
     <div className="screen">
       <div className="container">
