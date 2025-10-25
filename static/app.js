@@ -1,5 +1,9 @@
 const { useState, useCallback, useRef, useEffect } = React;
 
+// Simple session cache
+const apiCache = {};
+let mapScriptLoaded = false;
+
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [modal, setModal] = useState(null);
@@ -38,13 +42,35 @@ const DonEstateApp = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchOffset, setSearchOffset] = useState(0);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [favorites, setFavorites] = useState([]);
   const [mapProperties, setMapProperties] = useState([]);
+  const [togglingFavorite, setTogglingFavorite] = useState(null); // Property ID
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(null);
+
+  // Simple in-memory cache
+  const cache = useRef({});
+
+  const getCache = (key) => {
+    const entry = cache.current[key];
+    if (entry && Date.now() < entry.expiry) {
+      return entry.data;
+    }
+    return null;
+  };
+
+  const setCache = (key, data, ttl = 300000) => { // 5 minutes default TTL
+    cache.current[key] = {
+      data: data,
+      expiry: Date.now() + ttl,
+    };
+  };
 
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
@@ -60,24 +86,6 @@ const DonEstateApp = () => {
       setToasts(prev => prev.filter(toast => toast.id !== id));
     }, 3000);
   };
-
-  useEffect(() => {
-    // Dynamically load Yandex Maps API
-    const fetchConfigAndLoadMap = async () => {
-      try {
-        const response = await fetch('/api/config/');
-        const config = await response.json();
-        const script = document.createElement('script');
-        script.src = `https://api-maps.yandex.ru/2.1/?apikey=${config.yandex_maps_api_key}&lang=ru_RU`;
-        script.async = true;
-        document.head.appendChild(script);
-      } catch (error) {
-        console.error("Failed to load map config:", error);
-      }
-    };
-
-    fetchConfigAndLoadMap();
-  }, []);
 
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
@@ -318,25 +326,49 @@ const DonEstateApp = () => {
 
     setErrors({});
     setIsSubmitting(true);
-    setIsLoading(true); // Start loading
+    setIsLoading(true);
+    setSearchResults([]); // Reset results for new search
+    setSearchOffset(0);
+    setSearchTotal(0);
+
+    const searchRequestBody = {
+      transaction_type: searchForm.transactionType === 'Купить' ? 'sell' : 'rent',
+      property_types: searchForm.propertyTypes.map(p => p.toLowerCase()),
+      rooms: searchForm.rooms ? parseInt(searchForm.rooms) : undefined,
+      district: searchForm.district,
+      budget_min: searchForm.budgetMin ? parseFloat(searchForm.budgetMin) : undefined,
+      budget_max: searchForm.budgetMax ? parseFloat(searchForm.budgetMax) : undefined,
+      query_text: searchForm.requirements
+    };
+
+    // For a new search, we don't use cache to ensure fresh results,
+    // subsequent pagination for the *same* search will be cached by fetchMoreResults.
+    // Let's clear the cache for this specific search key if it exists.
+    const initialCacheKey = `search_${JSON.stringify(searchRequestBody)}_0`;
+    if(apiCache[initialCacheKey]) {
+        delete apiCache[initialCacheKey];
+    }
+
+    const cacheKey = `search_${JSON.stringify(searchForm)}`;
+    const cachedResults = getCache(cacheKey);
+
+    if (cachedResults) {
+      setSearchResults(cachedResults);
+      setCurrentScreen('results');
+      setIsSubmitting(false);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const tg = window.Telegram.WebApp;
-      const response = await fetch('/api/search', {
+      const response = await fetch('/api/search?offset=0&limit=20', { // Fetch first page
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
         },
-        body: JSON.stringify({
-          transaction_type: searchForm.transactionType === 'Купить' ? 'sell' : 'rent',
-          property_types: searchForm.propertyTypes.map(p => p.toLowerCase()),
-          rooms: searchForm.rooms ? parseInt(searchForm.rooms) : undefined,
-          district: searchForm.district,
-          budget_min: searchForm.budgetMin ? parseFloat(searchForm.budgetMin) : undefined,
-          budget_max: searchForm.budgetMax ? parseFloat(searchForm.budgetMax) : undefined,
-          query_text: searchForm.requirements
-        }),
+        body: JSON.stringify(searchRequestBody),
       });
 
       if (!response.ok) {
@@ -344,7 +376,10 @@ const DonEstateApp = () => {
       }
 
       const data = await response.json();
+      setCache(cacheKey, data.results); // Save to cache
       setSearchResults(data.results);
+      setSearchTotal(data.total);
+      setSearchOffset(data.results.length);
       setCurrentScreen('results');
 
     } catch (error) {
@@ -352,7 +387,7 @@ const DonEstateApp = () => {
       showToast('Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.');
     } finally {
       setIsSubmitting(false);
-      setIsLoading(false); // End loading
+      setIsLoading(false);
     }
   };
 
@@ -432,6 +467,12 @@ const DonEstateApp = () => {
   };
 
   const fetchFavorites = async () => {
+    const cacheKey = 'favorites';
+    if (apiCache[cacheKey]) {
+      setFavorites(apiCache[cacheKey]);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const tg = window.Telegram.WebApp;
@@ -440,18 +481,39 @@ const DonEstateApp = () => {
           'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
         },
       });
-      if (!response.ok) throw new Error('Failed to fetch favorites');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
       const data = await response.json();
+      apiCache[cacheKey] = data; // Cache the response
       setFavorites(data);
     } catch (error) {
-      console.error(error);
-      showToast('Не удалось загрузить избранное.');
+      console.error("Failed to fetch favorites:", error);
+      setModal({
+        type: 'error',
+        message: 'Не удалось загрузить избранное. Пожалуйста, проверьте ваше интернет-соединение и попробуйте снова.'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleToggleFavorite = async (propertyId, isFavorite) => {
+    // Optimistically update the UI first
+    const originalFavorites = [...favorites];
+    const originalSearchResults = [...searchResults];
+
+    const updatePropertyUI = (p) => p.id === propertyId ? { ...p, is_favorite: isFavorite } : p;
+    setSearchResults(prev => prev.map(updatePropertyUI));
+    if (isFavorite) {
+        const propToAdd = searchResults.find(p => p.id === propertyId);
+        if (propToAdd) setFavorites(prev => [...prev, { ...propToAdd, is_favorite: true }]);
+    } else {
+        setFavorites(prev => prev.filter(p => p.id !== propertyId));
+    }
+
+    setTogglingFavorite(propertyId);
+
     try {
       const tg = window.Telegram.WebApp;
       const method = isFavorite ? 'POST' : 'DELETE';
@@ -472,6 +534,9 @@ const DonEstateApp = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      // Invalidate cache on successful toggle
+      Object.keys(apiCache).forEach(key => delete apiCache[key]);
+
       // Optimistically update the UI
       const updateProperty = (p) => p.id === propertyId ? { ...p, is_favorite: isFavorite } : p;
       setSearchResults(prev => prev.map(updateProperty));
@@ -489,7 +554,15 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
-      showToast('Не удалось обновить избранное.');
+      // Revert UI on error
+      setFavorites(originalFavorites);
+      setSearchResults(originalSearchResults);
+      setModal({
+        type: 'error',
+        message: 'Не удалось обновить избранное. Пожалуйста, попробуйте еще раз.'
+      });
+    } finally {
+      setTogglingFavorite(null);
     }
   };
 
@@ -535,12 +608,12 @@ const DonEstateApp = () => {
           >
             🗺️ Карта
           </button>
-          <button
+          {/* <button
             className="btn btn-primary"
             onClick={() => setCurrentScreen('chat')}
           >
             💬 Чат с ассистентом
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
@@ -565,7 +638,7 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const PropertyCard = ({ property, onToggleFavorite }) => (
+  const PropertyCard = ({ property, onToggleFavorite, isToggling }) => (
     <div className="property-card">
       <div className="property-card__image-container">
         {property.photos && property.photos.length > 0 ? (
@@ -574,10 +647,11 @@ const DonEstateApp = () => {
           <div className="property-card__no-image">Нет фото</div>
         )}
         <button
-          className={`property-card__favorite-btn ${property.is_favorite ? 'active' : ''}`}
+          className={`property-card__favorite-btn ${property.is_favorite ? 'active' : ''} ${isToggling ? 'loading' : ''}`}
           onClick={() => onToggleFavorite(property.id, !property.is_favorite)}
+          disabled={isToggling}
         >
-          ❤️
+          {isToggling ? <div className="loading-spinner small"></div> : '❤️'}
         </button>
       </div>
       <div className="property-card__content">
@@ -589,7 +663,72 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const ResultsScreen = ({ results, onToggleFavorite, searchCriteria, isLoading }) => {
+  const fetchMoreResults = async () => {
+    if (isFetchingMore || searchOffset >= searchTotal) return;
+
+    setIsFetchingMore(true);
+
+    const searchRequestBody = {
+      transaction_type: searchForm.transactionType === 'Купить' ? 'sell' : 'rent',
+      property_types: searchForm.propertyTypes.map(p => p.toLowerCase()),
+      rooms: searchForm.rooms ? parseInt(searchForm.rooms) : undefined,
+      district: searchForm.district,
+      budget_min: searchForm.budgetMin ? parseFloat(searchForm.budgetMin) : undefined,
+      budget_max: searchForm.budgetMax ? parseFloat(searchForm.budgetMax) : undefined,
+      query_text: searchForm.requirements
+    };
+
+    const cacheKey = `search_${JSON.stringify(searchRequestBody)}_${searchOffset}`;
+
+    if(apiCache[cacheKey]) {
+        const data = apiCache[cacheKey];
+        setSearchResults(prev => [...prev, ...data.results]);
+        setSearchOffset(prev => prev + data.results.length);
+        setIsFetchingMore(false);
+        return;
+    }
+
+    try {
+      const tg = window.Telegram.WebApp;
+      const response = await fetch(`/api/search?offset=${searchOffset}&limit=20`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+        },
+        body: JSON.stringify(searchRequestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      apiCache[cacheKey] = data; // Cache the new page
+      setSearchResults(prev => [...prev, ...data.results]);
+      setSearchOffset(prev => prev + data.results.length);
+
+    } catch (error) {
+      console.error("Failed to fetch more results:", error);
+      // Optionally show a small error toast/message
+    } finally {
+      setIsFetchingMore(false);
+    }
+  };
+
+  const ResultsScreen = ({ results, total, onToggleFavorite, searchCriteria, isLoading, isFetchingMore, onFetchMore }) => {
+
+    useEffect(() => {
+        const handleScroll = () => {
+            // Check if we're near the bottom of the page
+            if (window.innerHeight + document.documentElement.scrollTop < document.documentElement.offsetHeight - 200) return;
+            onFetchMore();
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [onFetchMore]);
+
     const handleSaveSearch = async () => {
       try {
         const tg = window.Telegram.WebApp;
@@ -605,8 +744,8 @@ const DonEstateApp = () => {
         setModal({ type: 'success', message: '✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.' });
         setTimeout(() => setModal(null), 2000);
       } catch (error) {
-        console.error(error);
-        showToast('Не удалось сохранить поиск.');
+        console.error("Failed to save search:", error);
+        setModal({ type: 'error', message: 'Не удалось сохранить поиск. Пожалуйста, попробуйте еще раз.' });
       }
     };
 
@@ -620,7 +759,7 @@ const DonEstateApp = () => {
           ◀ Назад к поиску
         </button>
         <div className="header">
-          <h1>Результаты поиска</h1>
+          <h1>Результаты поиска ({total})</h1>
           <button className="btn btn-secondary" onClick={handleSaveSearch}>
             💾 Сохранить поиск
           </button>
@@ -634,6 +773,7 @@ const DonEstateApp = () => {
                 key={prop.id}
                 property={prop}
                 onToggleFavorite={onToggleFavorite}
+                isToggling={togglingFavorite === prop.id}
               />)
           ) : (
             <EmptyState
@@ -642,6 +782,7 @@ const DonEstateApp = () => {
               message="Попробуйте изменить критерии поиска или расширить бюджет."
             />
           )}
+          {isFetchingMore && <SkeletonCard />}
         </div>
       </div>
     </div>
@@ -668,6 +809,7 @@ const DonEstateApp = () => {
                 key={prop.id}
                 property={prop}
                 onToggleFavorite={onToggleFavorite}
+                isToggling={togglingFavorite === prop.id}
               />)
           ) : (
             <EmptyState
@@ -705,9 +847,33 @@ const DonEstateApp = () => {
       }
     };
 
+    const loadMapScript = () => {
+      return new Promise(async (resolve, reject) => {
+        if (mapScriptLoaded) {
+          return resolve();
+        }
+        try {
+          const response = await fetch('/api/config/');
+          const config = await response.json();
+          const script = document.createElement('script');
+          script.src = `https://api-maps.yandex.ru/2.1/?apikey=${config.yandex_maps_api_key}&lang=ru_RU`;
+          script.async = true;
+          script.onload = () => {
+            mapScriptLoaded = true;
+            ymaps.ready(resolve);
+          };
+          script.onerror = reject;
+          document.head.appendChild(script);
+        } catch (error) {
+          console.error("Failed to load map config:", error);
+          reject(error);
+        }
+      });
+    };
+
     useEffect(() => {
       const initMap = () => {
-        if (!mapRef.current) return;
+        if (!mapRef.current || mapInstance.current) return;
 
         const savedMapState = JSON.parse(sessionStorage.getItem('don_estate_map_state'));
 
@@ -728,32 +894,49 @@ const DonEstateApp = () => {
         fetchMapProperties(mapInstance.current);
       };
 
-      ymaps.ready(initMap);
+      loadMapScript().then(initMap).catch(err => console.error("Map init failed", err));
+
+      return () => {
+        // We don't destroy the map instance to preserve it across screen changes
+      };
     }, []);
 
     const fetchMapProperties = async (map) => {
-      setIsMapLoading(true);
+      setIsLoading(true);
+      const cacheKey = 'map_properties';
+      let properties = getCache(cacheKey);
+
+      if (properties) {
+        setMapProperties(properties);
+        addPlacemarksToMap(properties, map);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const response = await fetch('/api/map/properties');
         if (!response.ok) throw new Error('Failed to fetch map properties');
-        const properties = await response.json();
+        properties = await response.json();
+        setCache(cacheKey, properties);
         setMapProperties(properties);
-
-        properties.forEach(prop => {
-          const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
-            balloonContentHeader: prop.title,
-            balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
-            hintContent: prop.title
-          });
-          map.geoObjects.add(placemark);
-        });
-
+        addPlacemarksToMap(properties, map);
       } catch (error) {
-        console.error(error);
-        showToast('Не удалось загрузить объекты на карте.');
+        console.error("Failed to fetch map properties:", error);
+        setModal({ type: 'error', message: 'Не удалось загрузить объекты на карте. Попробуйте позже.' });
       } finally {
-        setIsMapLoading(false);
+        setIsLoading(false);
       }
+    };
+
+    const addPlacemarksToMap = (properties, map) => {
+      properties.forEach(prop => {
+        const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
+          balloonContentHeader: prop.title,
+          balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
+          hintContent: prop.title
+        });
+        map.geoObjects.add(placemark);
+      });
     };
 
     return (
@@ -802,6 +985,10 @@ const DonEstateApp = () => {
       e.preventDefault();
       if (!inputValue.trim()) return;
 
+      // Temporarily disabled chat
+      setModal({ type: 'error', message: 'Чат временно недоступен.' });
+      return;
+
       const userMessage = { sender: 'user', text: inputValue };
       setMessages(prev => [...prev, userMessage]);
       setInputValue('');
@@ -829,8 +1016,8 @@ const DonEstateApp = () => {
         setMessages(prev => [...prev, botMessage]);
 
       } catch (error) {
-        console.error(error);
-        showToast('Произошла ошибка. Попробуйте еще раз.');
+        console.error("Chat error:", error);
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Произошла ошибка сети. Не удалось связаться с ассистентом.' }]);
       } finally {
         setIsBotTyping(false);
       }
@@ -883,7 +1070,7 @@ const DonEstateApp = () => {
     );
   };
 
-  const SearchScreen = () => (
+  const SearchScreen = ({ setCurrentScreen, handleSearchSubmit, searchProgress, searchForm, setSearchForm, setErrors, handleBlur, errors, handlePropertyTypeChange, isSubmitting }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1078,7 +1265,7 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const OfferScreen = () => (
+  const OfferScreen = ({ setCurrentScreen, handleOfferSubmit, offerProgress, offerForm, setOfferForm, setErrors, handleBlur, errors, isSubmitting, handleFileUpload, removePhoto, removeVideo, fileInputRef, videoInputRef, formatFileSize }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1347,8 +1534,37 @@ const DonEstateApp = () => {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'search': return <SearchScreen />;
-      case 'offer': return <OfferScreen />;
+      case 'search':
+        return <SearchScreen
+          searchForm={searchForm}
+          setSearchForm={setSearchForm}
+          handleSearchSubmit={handleSearchSubmit}
+          errors={errors}
+          setErrors={setErrors}
+          isSubmitting={isSubmitting}
+          handleBlur={handleBlur}
+          handlePropertyTypeChange={handlePropertyTypeChange}
+          searchProgress={searchProgress}
+          setCurrentScreen={setCurrentScreen}
+        />;
+      case 'offer':
+        return <OfferScreen
+            offerForm={offerForm}
+            setOfferForm={setOfferForm}
+            handleOfferSubmit={handleOfferSubmit}
+            errors={errors}
+            setErrors={setErrors}
+            isSubmitting={isSubmitting}
+            handleBlur={handleBlur}
+            offerProgress={offerProgress}
+            setCurrentScreen={setCurrentScreen}
+            handleFileUpload={handleFileUpload}
+            removePhoto={removePhoto}
+            removeVideo={removeVideo}
+            fileInputRef={fileInputRef}
+            videoInputRef={videoInputRef}
+            formatFileSize={formatFileSize}
+        />;
       case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
@@ -1380,4 +1596,7 @@ const DonEstateApp = () => {
   );
 };
 
-ReactDOM.render(<DonEstateApp />, document.getElementById('root'));
+ReactDOM.render(
+    <DonEstateApp />,
+    document.getElementById('root')
+);
