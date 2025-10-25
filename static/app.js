@@ -480,7 +480,7 @@ const DonEstateApp = () => {
     <div className="screen">
       <div className="container">
         <div className="header">
-          <h1>Don Estate</h1>
+          <img src="/static/assets/logo.jpg" alt="Don Estate" className="logo" />
           <p>Агентство недвижимости в Донецке</p>
         </div>
 
