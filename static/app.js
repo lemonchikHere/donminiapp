@@ -7,6 +7,7 @@ let mapScriptLoaded = false;
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [modal, setModal] = useState(null);
+  const [toasts, setToasts] = useState([]);
 
   // Search form state
   const [searchForm, setSearchForm] = useState({
@@ -46,10 +47,29 @@ const DonEstateApp = () => {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [favorites, setFavorites] = useState([]);
   const [mapProperties, setMapProperties] = useState([]);
+  const [togglingFavorite, setTogglingFavorite] = useState(null); // Property ID
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
+
+  // Simple in-memory cache
+  const cache = useRef({});
+
+  const getCache = (key) => {
+    const entry = cache.current[key];
+    if (entry && Date.now() < entry.expiry) {
+      return entry.data;
+    }
+    return null;
+  };
+
+  const setCache = (key, data, ttl = 300000) => { // 5 minutes default TTL
+    cache.current[key] = {
+      data: data,
+      expiry: Date.now() + ttl,
+    };
+  };
 
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
@@ -57,6 +77,14 @@ const DonEstateApp = () => {
       <div className="progress-text">{Math.round(progress)}%</div>
     </div>
   );
+
+  const showToast = (message) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(toast => toast.id !== id));
+    }, 3000);
+  };
 
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
@@ -81,15 +109,15 @@ const DonEstateApp = () => {
     }
   }, []);
 
-  // Load form data from localStorage on initial render
+  // Load form data from sessionStorage on initial render
   useEffect(() => {
     try {
-      const savedSearchForm = localStorage.getItem('don_estate_search_form');
+      const savedSearchForm = sessionStorage.getItem('don_estate_search_form');
       if (savedSearchForm) {
         setSearchForm(JSON.parse(savedSearchForm));
       }
 
-      const savedOfferForm = localStorage.getItem('don_estate_offer_form');
+      const savedOfferForm = sessionStorage.getItem('don_estate_offer_form');
       if (savedOfferForm) {
         // We don't restore photos/video as they are file objects
         const parsedOfferForm = JSON.parse(savedOfferForm);
@@ -98,26 +126,26 @@ const DonEstateApp = () => {
         setOfferForm(prev => ({ ...prev, ...parsedOfferForm }));
       }
     } catch (error) {
-      console.error("Failed to load form data from localStorage", error);
+      console.error("Failed to load form data from sessionStorage", error);
     }
   }, []);
 
-  // Save search form data to localStorage
+  // Save search form data to sessionStorage
   useEffect(() => {
     try {
-      localStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
+      sessionStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
     } catch (error) {
-      console.error("Failed to save search form data to localStorage", error);
+      console.error("Failed to save search form data to sessionStorage", error);
     }
   }, [searchForm]);
 
-  // Save offer form data to localStorage (excluding files)
+  // Save offer form data to sessionStorage (excluding files)
   useEffect(() => {
     try {
       const { photos, video, ...formDataToSave } = offerForm;
-      localStorage.setItem('don_estate_offer_form', JSON.stringify(formDataToSave));
+      sessionStorage.setItem('don_estate_offer_form', JSON.stringify(formDataToSave));
     } catch (error) {
-      console.error("Failed to save offer form data to localStorage", error);
+      console.error("Failed to save offer form data to sessionStorage", error);
     }
   }, [offerForm]);
 
@@ -226,10 +254,7 @@ const DonEstateApp = () => {
       const totalPhotos = currentPhotos + validFiles.length;
 
       if (totalPhotos > 10) {
-        setModal({
-          type: 'error',
-          message: 'Максимум 10 фотографий разрешено'
-        });
+        showToast('Максимум 10 фотографий разрешено');
         return;
       }
 
@@ -243,18 +268,12 @@ const DonEstateApp = () => {
       const maxSize = 50 * 1024 * 1024; // 50MB
 
       if (!validTypes.includes(file.type)) {
-        setModal({
-          type: 'error',
-          message: 'Поддерживаются только файлы MP4 и MOV'
-        });
+        showToast('Поддерживаются только файлы MP4 и MOV');
         return;
       }
 
       if (file.size > maxSize) {
-        setModal({
-          type: 'error',
-          message: 'Размер видео не должен превышать 50 МБ'
-        });
+        showToast('Размер видео не должен превышать 50 МБ');
         return;
       }
 
@@ -296,6 +315,11 @@ const DonEstateApp = () => {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      const firstErrorField = Object.keys(validationErrors)[0];
+      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -324,6 +348,17 @@ const DonEstateApp = () => {
         delete apiCache[initialCacheKey];
     }
 
+    const cacheKey = `search_${JSON.stringify(searchForm)}`;
+    const cachedResults = getCache(cacheKey);
+
+    if (cachedResults) {
+      setSearchResults(cachedResults);
+      setCurrentScreen('results');
+      setIsSubmitting(false);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const tg = window.Telegram.WebApp;
       const response = await fetch('/api/search?offset=0&limit=20', { // Fetch first page
@@ -340,7 +375,7 @@ const DonEstateApp = () => {
       }
 
       const data = await response.json();
-      apiCache[initialCacheKey] = data; // Cache the first page
+      setCache(cacheKey, data.results); // Save to cache
       setSearchResults(data.results);
       setSearchTotal(data.total);
       setSearchOffset(data.results.length);
@@ -348,10 +383,7 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to fetch search results:", error);
-      setModal({
-        type: 'error',
-        message: 'Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.'
-      });
+      showToast('Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.');
     } finally {
       setIsSubmitting(false);
       setIsLoading(false);
@@ -364,6 +396,11 @@ const DonEstateApp = () => {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      const firstErrorField = Object.keys(validationErrors)[0];
+      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -394,14 +431,14 @@ const DonEstateApp = () => {
           floors: '', rooms: '', price: '', description: '',
           name: '', phone: '', photos: [], video: null
         });
-        localStorage.removeItem('don_estate_offer_form');
+        sessionStorage.removeItem('don_estate_offer_form');
         setModal(null);
         setCurrentScreen('main');
       }, 2000);
 
     } catch (error) {
       console.error(error);
-      setModal({ type: 'error', message: 'Не удалось отправить заявку.' });
+      showToast('Не удалось отправить заявку.');
     } finally {
       setIsSubmitting(false);
     }
@@ -422,19 +459,39 @@ const DonEstateApp = () => {
           'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
         },
       });
-      if (!response.ok) throw new Error('Failed to fetch favorites');
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
       const data = await response.json();
       apiCache[cacheKey] = data; // Cache the response
       setFavorites(data);
     } catch (error) {
-      console.error(error);
-      setModal({ type: 'error', message: 'Не удалось загрузить избранное.' });
+      console.error("Failed to fetch favorites:", error);
+      setModal({
+        type: 'error',
+        message: 'Не удалось загрузить избранное. Пожалуйста, проверьте ваше интернет-соединение и попробуйте снова.'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleToggleFavorite = async (propertyId, isFavorite) => {
+    // Optimistically update the UI first
+    const originalFavorites = [...favorites];
+    const originalSearchResults = [...searchResults];
+
+    const updatePropertyUI = (p) => p.id === propertyId ? { ...p, is_favorite: isFavorite } : p;
+    setSearchResults(prev => prev.map(updatePropertyUI));
+    if (isFavorite) {
+        const propToAdd = searchResults.find(p => p.id === propertyId);
+        if (propToAdd) setFavorites(prev => [...prev, { ...propToAdd, is_favorite: true }]);
+    } else {
+        setFavorites(prev => prev.filter(p => p.id !== propertyId));
+    }
+
+    setTogglingFavorite(propertyId);
+
     try {
       const tg = window.Telegram.WebApp;
       const method = isFavorite ? 'POST' : 'DELETE';
@@ -475,10 +532,15 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
+      // Revert UI on error
+      setFavorites(originalFavorites);
+      setSearchResults(originalSearchResults);
       setModal({
         type: 'error',
-        message: 'Не удалось обновить избранное.'
+        message: 'Не удалось обновить избранное. Пожалуйста, попробуйте еще раз.'
       });
+    } finally {
+      setTogglingFavorite(null);
     }
   };
 
@@ -524,12 +586,12 @@ const DonEstateApp = () => {
           >
             🗺️ Карта
           </button>
-          <button
+          {/* <button
             className="btn btn-primary"
             onClick={() => setCurrentScreen('chat')}
           >
             💬 Чат с ассистентом
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
@@ -554,7 +616,7 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const PropertyCard = ({ property, onToggleFavorite }) => (
+  const PropertyCard = ({ property, onToggleFavorite, isToggling }) => (
     <div className="property-card">
       <div className="property-card__image-container">
         {property.photos && property.photos.length > 0 ? (
@@ -563,10 +625,11 @@ const DonEstateApp = () => {
           <div className="property-card__no-image">Нет фото</div>
         )}
         <button
-          className={`property-card__favorite-btn ${property.is_favorite ? 'active' : ''}`}
+          className={`property-card__favorite-btn ${property.is_favorite ? 'active' : ''} ${isToggling ? 'loading' : ''}`}
           onClick={() => onToggleFavorite(property.id, !property.is_favorite)}
+          disabled={isToggling}
         >
-          ❤️
+          {isToggling ? <div className="loading-spinner small"></div> : '❤️'}
         </button>
       </div>
       <div className="property-card__content">
@@ -659,8 +722,8 @@ const DonEstateApp = () => {
         setModal({ type: 'success', message: '✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.' });
         setTimeout(() => setModal(null), 2000);
       } catch (error) {
-        console.error(error);
-        setModal({ type: 'error', message: 'Не удалось сохранить поиск.' });
+        console.error("Failed to save search:", error);
+        setModal({ type: 'error', message: 'Не удалось сохранить поиск. Пожалуйста, попробуйте еще раз.' });
       }
     };
 
@@ -688,6 +751,7 @@ const DonEstateApp = () => {
                 key={prop.id}
                 property={prop}
                 onToggleFavorite={onToggleFavorite}
+                isToggling={togglingFavorite === prop.id}
               />)
           ) : (
             <EmptyState
@@ -723,6 +787,7 @@ const DonEstateApp = () => {
                 key={prop.id}
                 property={prop}
                 onToggleFavorite={onToggleFavorite}
+                isToggling={togglingFavorite === prop.id}
               />)
           ) : (
             <EmptyState
@@ -739,6 +804,7 @@ const DonEstateApp = () => {
   const MapScreen = () => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
+    const [isMapLoading, setIsMapLoading] = useState(true);
 
     const handleMyLocation = () => {
       if (window.Telegram && window.Telegram.WebApp) {
@@ -787,9 +853,19 @@ const DonEstateApp = () => {
       const initMap = () => {
         if (!mapRef.current || mapInstance.current) return;
 
+        const savedMapState = JSON.parse(sessionStorage.getItem('don_estate_map_state'));
+
         mapInstance.current = new ymaps.Map(mapRef.current, {
-          center: [48.015, 37.802], // Donetsk center
-          zoom: 12
+          center: savedMapState?.center || [48.015, 37.802], // Donetsk center
+          zoom: savedMapState?.zoom || 12
+        });
+
+        mapInstance.current.events.add(['boundschange'], () => {
+            const mapState = {
+                center: mapInstance.current.getCenter(),
+                zoom: mapInstance.current.getZoom()
+            };
+            sessionStorage.setItem('don_estate_map_state', JSON.stringify(mapState));
         });
 
         // Fetch properties and add placemarks
@@ -804,45 +880,50 @@ const DonEstateApp = () => {
     }, []);
 
     const fetchMapProperties = async (map) => {
+      setIsLoading(true);
       const cacheKey = 'map_properties';
-      if (apiCache[cacheKey]) {
-        const properties = apiCache[cacheKey];
+      let properties = getCache(cacheKey);
+
+      if (properties) {
         setMapProperties(properties);
-        properties.forEach(prop => {
-            const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
-                balloonContentHeader: prop.title,
-                balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
-                hintContent: prop.title
-            });
-            map.geoObjects.add(placemark);
-        });
+        addPlacemarksToMap(properties, map);
+        setIsLoading(false);
         return;
       }
 
       try {
         const response = await fetch('/api/map/properties');
         if (!response.ok) throw new Error('Failed to fetch map properties');
-        const properties = await response.json();
-        apiCache[cacheKey] = properties; // Cache the response
+        properties = await response.json();
+        setCache(cacheKey, properties);
         setMapProperties(properties);
-
-        properties.forEach(prop => {
-          const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
-            balloonContentHeader: prop.title,
-            balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
-            hintContent: prop.title
-          });
-          map.geoObjects.add(placemark);
-        });
-
+        addPlacemarksToMap(properties, map);
       } catch (error) {
-        console.error(error);
-        setModal({ type: 'error', message: 'Не удалось загрузить объекты на карте.' });
+        console.error("Failed to fetch map properties:", error);
+        setModal({ type: 'error', message: 'Не удалось загрузить объекты на карте. Попробуйте позже.' });
+      } finally {
+        setIsLoading(false);
       }
+    };
+
+    const addPlacemarksToMap = (properties, map) => {
+      properties.forEach(prop => {
+        const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
+          balloonContentHeader: prop.title,
+          balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
+          hintContent: prop.title
+        });
+        map.geoObjects.add(placemark);
+      });
     };
 
     return (
       <div className="screen map-screen">
+        {isMapLoading && (
+          <div className="spinner-overlay">
+            <div className="spinner"></div>
+          </div>
+        )}
         <div id="map" ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
         <button
           className="btn btn-back map-back-btn"
@@ -864,9 +945,13 @@ const DonEstateApp = () => {
     const [messages, setMessages] = useState([
       { sender: 'bot', text: 'Здравствуйте! Чем могу помочь?' }
     ]);
-    const [inputValue, setInputValue] = useState('');
+    const [inputValue, setInputValue] = useState(sessionStorage.getItem('don_estate_chat_input') || '');
     const [isBotTyping, setIsBotTyping] = useState(false);
     const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        sessionStorage.setItem('don_estate_chat_input', inputValue);
+    }, [inputValue]);
 
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -877,6 +962,10 @@ const DonEstateApp = () => {
     const handleSendMessage = async (e) => {
       e.preventDefault();
       if (!inputValue.trim()) return;
+
+      // Temporarily disabled chat
+      setModal({ type: 'error', message: 'Чат временно недоступен.' });
+      return;
 
       const userMessage = { sender: 'user', text: inputValue };
       setMessages(prev => [...prev, userMessage]);
@@ -905,8 +994,8 @@ const DonEstateApp = () => {
         setMessages(prev => [...prev, botMessage]);
 
       } catch (error) {
-        console.error(error);
-        setMessages(prev => [...prev, { sender: 'bot', text: 'Произошла ошибка. Попробуйте еще раз.' }]);
+        console.error("Chat error:", error);
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Произошла ошибка сети. Не удалось связаться с ассистентом.' }]);
       } finally {
         setIsBotTyping(false);
       }
@@ -938,7 +1027,11 @@ const DonEstateApp = () => {
               )}
             </div>
           ))}
-          {isBotTyping && <div className="chat-bubble bot typing">...</div>}
+          {isBotTyping && (
+            <div className="chat-bubble bot typing">
+              <div className="spinner"></div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         <form className="chat-input-form" onSubmit={handleSendMessage}>
@@ -955,7 +1048,7 @@ const DonEstateApp = () => {
     );
   };
 
-  const SearchScreen = () => (
+  const SearchScreen = ({ setCurrentScreen, handleSearchSubmit, searchProgress, searchForm, setSearchForm, setErrors, handleBlur, errors, handlePropertyTypeChange, isSubmitting }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1139,7 +1232,7 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const OfferScreen = () => (
+  const OfferScreen = ({ setCurrentScreen, handleOfferSubmit, offerProgress, offerForm, setOfferForm, setErrors, handleBlur, errors, isSubmitting, handleFileUpload, removePhoto, removeVideo, fileInputRef, videoInputRef, formatFileSize }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1408,9 +1501,38 @@ const DonEstateApp = () => {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'search': return <SearchScreen />;
-      case 'offer': return <OfferScreen />;
-      case 'results': return <ResultsScreen results={searchResults} total={searchTotal} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} isFetchingMore={isFetchingMore} onFetchMore={fetchMoreResults} />;
+      case 'search':
+        return <SearchScreen
+          searchForm={searchForm}
+          setSearchForm={setSearchForm}
+          handleSearchSubmit={handleSearchSubmit}
+          errors={errors}
+          setErrors={setErrors}
+          isSubmitting={isSubmitting}
+          handleBlur={handleBlur}
+          handlePropertyTypeChange={handlePropertyTypeChange}
+          searchProgress={searchProgress}
+          setCurrentScreen={setCurrentScreen}
+        />;
+      case 'offer':
+        return <OfferScreen
+            offerForm={offerForm}
+            setOfferForm={setOfferForm}
+            handleOfferSubmit={handleOfferSubmit}
+            errors={errors}
+            setErrors={setErrors}
+            isSubmitting={isSubmitting}
+            handleBlur={handleBlur}
+            offerProgress={offerProgress}
+            setCurrentScreen={setCurrentScreen}
+            handleFileUpload={handleFileUpload}
+            removePhoto={removePhoto}
+            removeVideo={removeVideo}
+            fileInputRef={fileInputRef}
+            videoInputRef={videoInputRef}
+            formatFileSize={formatFileSize}
+        />;
+      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
       case 'chat': return <ChatScreen />;
@@ -1421,22 +1543,27 @@ const DonEstateApp = () => {
   return (
     <>
       {renderScreen()}
-      {modal && (
+      {modal && modal.type === 'success' && (
         <div className="modal">
           <div className="modal-content">
-            <div className={`modal-text ${modal.type === 'success' ? 'success-text' : 'error-text'}`}>
+            <div className="modal-text success-text">
               {modal.message}
             </div>
-            {modal.type === 'error' && (
-              <button className="btn btn-primary" onClick={() => setModal(null)}>
-                OK
-              </button>
-            )}
           </div>
         </div>
       )}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className="toast">
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </>
   );
 };
 
-ReactDOM.render(<DonEstateApp />, document.getElementById('root'));
+ReactDOM.render(
+    <DonEstateApp />,
+    document.getElementById('root')
+);

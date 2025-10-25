@@ -11,16 +11,16 @@ from src.models.user import User
 from src.models.property import Property
 from src.api.dependencies import get_current_user
 from src.config import settings
-# from src.services.notification_service import send_telegram_notification # To be created
+from src.api.schemas import SanitizedString
 
 router = APIRouter(prefix="/api/appointments", tags=["Appointments"])
 
 class AppointmentCreate(BaseModel):
     property_id: UUID
     requested_datetime: datetime
-    user_phone: str
-    user_name: str
-    notes: Optional[str] = None
+    user_phone: SanitizedString
+    user_name: SanitizedString
+    notes: Optional[SanitizedString] = None
 
 class AppointmentResponse(BaseModel):
     id: UUID
