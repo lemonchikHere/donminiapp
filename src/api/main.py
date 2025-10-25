@@ -30,8 +30,9 @@ app.include_router(searches.router)
 app.include_router(config.router)
 app.include_router(offers.router)
 
-# Serve Frontend
+# Serve Frontend & Media
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/media", StaticFiles(directory="media"), name="media")
 
 @app.get("/")
 async def read_index():

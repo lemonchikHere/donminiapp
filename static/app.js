@@ -44,6 +44,7 @@ const DonEstateApp = () => {
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(null);
 
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
@@ -355,7 +356,7 @@ const DonEstateApp = () => {
     }
   };
 
-  const handleOfferSubmit = async (e) => {
+  const handleOfferSubmit = (e) => {
     e.preventDefault();
     const validationErrors = validateOfferForm();
 
@@ -371,42 +372,63 @@ const DonEstateApp = () => {
 
     setErrors({});
     setIsSubmitting(true);
+    setUploadProgress(0);
 
-    try {
-      // We are not handling file uploads in this step to keep it simple
-      const { photos, video, ...formData } = offerForm;
+    const formData = new FormData();
+    Object.keys(offerForm).forEach(key => {
+        if (key === 'photos') {
+            offerForm.photos.forEach(photo => formData.append('photos', photo, photo.name));
+        } else if (key === 'video') {
+            if (offerForm.video) {
+                formData.append('video', offerForm.video, offerForm.video.name);
+            }
+        } else {
+            formData.append(key, offerForm[key]);
+        }
+    });
 
-      const response = await fetch('/api/offers/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+    const xhr = new XMLHttpRequest();
 
-      if (!response.ok) throw new Error('Failed to submit offer');
+    xhr.open('POST', '/api/offers/', true);
 
-      setModal({
-        type: 'success',
-        message: '✅ Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.'
-      });
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percentComplete = (event.loaded / event.total) * 100;
+        setUploadProgress(percentComplete);
+      }
+    };
 
-      // Reset form and navigate back
-      setTimeout(() => {
-        setOfferForm({
-          transactionType: '', propertyType: '', address: '', area: '',
-          floors: '', rooms: '', price: '', description: '',
-          name: '', phone: '', photos: [], video: null
-        });
-        sessionStorage.removeItem('don_estate_offer_form');
-        setModal(null);
-        setCurrentScreen('main');
-      }, 2000);
-
-    } catch (error) {
-      console.error(error);
-      showToast('Не удалось отправить заявку.');
-    } finally {
+    xhr.onload = () => {
       setIsSubmitting(false);
-    }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        setModal({
+          type: 'success',
+          message: '✅ Заявка успешно отправлена на модерацию!'
+        });
+        setTimeout(() => {
+          setOfferForm({
+            transactionType: '', propertyType: '', address: '', area: '',
+            floors: '', rooms: '', price: '', description: '',
+            name: '', phone: '', photos: [], video: null
+          });
+          sessionStorage.removeItem('don_estate_offer_form');
+          setModal(null);
+          setUploadProgress(null);
+          setCurrentScreen('main');
+        }, 2000);
+      } else {
+        showToast('Не удалось отправить заявку. Попробуйте снова.');
+        setUploadProgress(null);
+      }
+    };
+
+    xhr.onerror = () => {
+      setIsSubmitting(false);
+      showToast('Произошла сетевая ошибка. Проверьте подключение.');
+      setUploadProgress(null);
+    };
+
+    xhr.send(formData);
   };
 
   const fetchFavorites = async () => {
@@ -1040,6 +1062,17 @@ const DonEstateApp = () => {
             {isSubmitting && <div className="loading-spinner"></div>}
             {isSubmitting ? 'Отправка...' : 'Отправить заявку'}
           </button>
+          {uploadProgress !== null && (
+            <div className="upload-progress-container">
+              <div
+                className="upload-progress-bar"
+                style={{
+                  width: `${uploadProgress}%`,
+                  backgroundColor: `hsl(${uploadProgress * 1.2}, 100%, 45%)` // Red to Green
+                }}
+              ></div>
+            </div>
+          )}
         </form>
       </div>
     </div>
