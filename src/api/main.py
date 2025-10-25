@@ -31,8 +31,4 @@ app.include_router(config.router)
 app.include_router(offers.router)
 
 # Serve Frontend
-@app.get("/")
-async def read_index():
-    return FileResponse('static/index.html')
-
-app.mount("/", StaticFiles(directory="static"), name="static")
+app.mount("/", StaticFiles(directory="static", html = True), name="static")
