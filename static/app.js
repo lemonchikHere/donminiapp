@@ -3,6 +3,7 @@ const { useState, useCallback, useRef, useEffect } = React;
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [modal, setModal] = useState(null);
+  const [toasts, setToasts] = useState([]);
 
   // Search form state
   const [searchForm, setSearchForm] = useState({
@@ -70,6 +71,14 @@ const DonEstateApp = () => {
     </div>
   );
 
+  const showToast = (message) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(toast => toast.id !== id));
+    }, 3000);
+  };
+
   useEffect(() => {
     // Dynamically load Yandex Maps API
     const fetchConfigAndLoadMap = async () => {
@@ -111,15 +120,15 @@ const DonEstateApp = () => {
     }
   }, []);
 
-  // Load form data from localStorage on initial render
+  // Load form data from sessionStorage on initial render
   useEffect(() => {
     try {
-      const savedSearchForm = localStorage.getItem('don_estate_search_form');
+      const savedSearchForm = sessionStorage.getItem('don_estate_search_form');
       if (savedSearchForm) {
         setSearchForm(JSON.parse(savedSearchForm));
       }
 
-      const savedOfferForm = localStorage.getItem('don_estate_offer_form');
+      const savedOfferForm = sessionStorage.getItem('don_estate_offer_form');
       if (savedOfferForm) {
         // We don't restore photos/video as they are file objects
         const parsedOfferForm = JSON.parse(savedOfferForm);
@@ -128,26 +137,26 @@ const DonEstateApp = () => {
         setOfferForm(prev => ({ ...prev, ...parsedOfferForm }));
       }
     } catch (error) {
-      console.error("Failed to load form data from localStorage", error);
+      console.error("Failed to load form data from sessionStorage", error);
     }
   }, []);
 
-  // Save search form data to localStorage
+  // Save search form data to sessionStorage
   useEffect(() => {
     try {
-      localStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
+      sessionStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
     } catch (error) {
-      console.error("Failed to save search form data to localStorage", error);
+      console.error("Failed to save search form data to sessionStorage", error);
     }
   }, [searchForm]);
 
-  // Save offer form data to localStorage (excluding files)
+  // Save offer form data to sessionStorage (excluding files)
   useEffect(() => {
     try {
       const { photos, video, ...formDataToSave } = offerForm;
-      localStorage.setItem('don_estate_offer_form', JSON.stringify(formDataToSave));
+      sessionStorage.setItem('don_estate_offer_form', JSON.stringify(formDataToSave));
     } catch (error) {
-      console.error("Failed to save offer form data to localStorage", error);
+      console.error("Failed to save offer form data to sessionStorage", error);
     }
   }, [offerForm]);
 
@@ -256,10 +265,7 @@ const DonEstateApp = () => {
       const totalPhotos = currentPhotos + validFiles.length;
 
       if (totalPhotos > 10) {
-        setModal({
-          type: 'error',
-          message: 'Максимум 10 фотографий разрешено'
-        });
+        showToast('Максимум 10 фотографий разрешено');
         return;
       }
 
@@ -273,18 +279,12 @@ const DonEstateApp = () => {
       const maxSize = 50 * 1024 * 1024; // 50MB
 
       if (!validTypes.includes(file.type)) {
-        setModal({
-          type: 'error',
-          message: 'Поддерживаются только файлы MP4 и MOV'
-        });
+        showToast('Поддерживаются только файлы MP4 и MOV');
         return;
       }
 
       if (file.size > maxSize) {
-        setModal({
-          type: 'error',
-          message: 'Размер видео не должен превышать 50 МБ'
-        });
+        showToast('Размер видео не должен превышать 50 МБ');
         return;
       }
 
@@ -326,6 +326,11 @@ const DonEstateApp = () => {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      const firstErrorField = Object.keys(validationErrors)[0];
+      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -374,10 +379,7 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to fetch search results:", error);
-      setModal({
-        type: 'error',
-        message: 'Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.'
-      });
+      showToast('Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.');
     } finally {
       setIsSubmitting(false);
       setIsLoading(false); // End loading
@@ -390,6 +392,11 @@ const DonEstateApp = () => {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      const firstErrorField = Object.keys(validationErrors)[0];
+      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -420,14 +427,14 @@ const DonEstateApp = () => {
           floors: '', rooms: '', price: '', description: '',
           name: '', phone: '', photos: [], video: null
         });
-        localStorage.removeItem('don_estate_offer_form');
+        sessionStorage.removeItem('don_estate_offer_form');
         setModal(null);
         setCurrentScreen('main');
       }, 2000);
 
     } catch (error) {
       console.error(error);
-      setModal({ type: 'error', message: 'Не удалось отправить заявку.' });
+      showToast('Не удалось отправить заявку.');
     } finally {
       setIsSubmitting(false);
     }
@@ -701,6 +708,7 @@ const DonEstateApp = () => {
   const MapScreen = () => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
+    const [isMapLoading, setIsMapLoading] = useState(true);
 
     const handleMyLocation = () => {
       if (window.Telegram && window.Telegram.WebApp) {
@@ -725,9 +733,19 @@ const DonEstateApp = () => {
       const initMap = () => {
         if (!mapRef.current) return;
 
+        const savedMapState = JSON.parse(sessionStorage.getItem('don_estate_map_state'));
+
         mapInstance.current = new ymaps.Map(mapRef.current, {
-          center: [48.015, 37.802], // Donetsk center
-          zoom: 12
+          center: savedMapState?.center || [48.015, 37.802], // Donetsk center
+          zoom: savedMapState?.zoom || 12
+        });
+
+        mapInstance.current.events.add(['boundschange'], () => {
+            const mapState = {
+                center: mapInstance.current.getCenter(),
+                zoom: mapInstance.current.getZoom()
+            };
+            sessionStorage.setItem('don_estate_map_state', JSON.stringify(mapState));
         });
 
         // Fetch properties and add placemarks
@@ -777,7 +795,11 @@ const DonEstateApp = () => {
 
     return (
       <div className="screen map-screen">
-        {isLoading && <div className="map-loader">Загрузка карты...</div>}
+        {isMapLoading && (
+          <div className="spinner-overlay">
+            <div className="spinner"></div>
+          </div>
+        )}
         <div id="map" ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
         <button
           className="btn btn-back map-back-btn"
@@ -799,9 +821,13 @@ const DonEstateApp = () => {
     const [messages, setMessages] = useState([
       { sender: 'bot', text: 'Здравствуйте! Чем могу помочь?' }
     ]);
-    const [inputValue, setInputValue] = useState('');
+    const [inputValue, setInputValue] = useState(sessionStorage.getItem('don_estate_chat_input') || '');
     const [isBotTyping, setIsBotTyping] = useState(false);
     const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        sessionStorage.setItem('don_estate_chat_input', inputValue);
+    }, [inputValue]);
 
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -877,7 +903,11 @@ const DonEstateApp = () => {
               )}
             </div>
           ))}
-          {isBotTyping && <div className="chat-bubble bot typing">...</div>}
+          {isBotTyping && (
+            <div className="chat-bubble bot typing">
+              <div className="spinner"></div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
         <form className="chat-input-form" onSubmit={handleSendMessage}>
@@ -894,7 +924,7 @@ const DonEstateApp = () => {
     );
   };
 
-  const SearchScreen = () => (
+  const SearchScreen = ({ setCurrentScreen, handleSearchSubmit, searchProgress, searchForm, setSearchForm, setErrors, handleBlur, errors, handlePropertyTypeChange, isSubmitting }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1078,7 +1108,7 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const OfferScreen = () => (
+  const OfferScreen = ({ setCurrentScreen, handleOfferSubmit, offerProgress, offerForm, setOfferForm, setErrors, handleBlur, errors, isSubmitting, handleFileUpload, removePhoto, removeVideo, fileInputRef, videoInputRef, formatFileSize }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1347,8 +1377,37 @@ const DonEstateApp = () => {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'search': return <SearchScreen />;
-      case 'offer': return <OfferScreen />;
+      case 'search':
+        return <SearchScreen
+          searchForm={searchForm}
+          setSearchForm={setSearchForm}
+          handleSearchSubmit={handleSearchSubmit}
+          errors={errors}
+          setErrors={setErrors}
+          isSubmitting={isSubmitting}
+          handleBlur={handleBlur}
+          handlePropertyTypeChange={handlePropertyTypeChange}
+          searchProgress={searchProgress}
+          setCurrentScreen={setCurrentScreen}
+        />;
+      case 'offer':
+        return <OfferScreen
+            offerForm={offerForm}
+            setOfferForm={setOfferForm}
+            handleOfferSubmit={handleOfferSubmit}
+            errors={errors}
+            setErrors={setErrors}
+            isSubmitting={isSubmitting}
+            handleBlur={handleBlur}
+            offerProgress={offerProgress}
+            setCurrentScreen={setCurrentScreen}
+            handleFileUpload={handleFileUpload}
+            removePhoto={removePhoto}
+            removeVideo={removeVideo}
+            fileInputRef={fileInputRef}
+            videoInputRef={videoInputRef}
+            formatFileSize={formatFileSize}
+        />;
       case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
@@ -1360,22 +1419,27 @@ const DonEstateApp = () => {
   return (
     <>
       {renderScreen()}
-      {modal && (
+      {modal && modal.type === 'success' && (
         <div className="modal">
           <div className="modal-content">
-            <div className={`modal-text ${modal.type === 'success' ? 'success-text' : 'error-text'}`}>
+            <div className="modal-text success-text">
               {modal.message}
             </div>
-            {modal.type === 'error' && (
-              <button className="btn btn-primary" onClick={() => setModal(null)}>
-                OK
-              </button>
-            )}
           </div>
         </div>
       )}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className="toast">
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </>
   );
 };
 
-ReactDOM.render(<DonEstateApp />, document.getElementById('root'));
+ReactDOM.render(
+    <DonEstateApp />,
+    document.getElementById('root')
+);

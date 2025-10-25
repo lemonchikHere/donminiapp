@@ -9,19 +9,20 @@ from src.models.property import Property
 from src.models.user import Favorite, User
 from src.api.dependencies import get_current_user
 from src.config import settings
+from src.api.schemas import SanitizedString
 
 openai.api_key = settings.OPENAI_API_KEY
 
 router = APIRouter(prefix="/api", tags=["Search"])
 
 class PropertySearchRequest(BaseModel):
-    transaction_type: Optional[str] = None
-    property_types: Optional[List[str]] = None
+    transaction_type: Optional[SanitizedString] = None
+    property_types: Optional[List[SanitizedString]] = None
     rooms: Optional[int] = None
-    district: Optional[str] = None
+    district: Optional[SanitizedString] = None
     budget_min: Optional[float] = None
     budget_max: Optional[float] = None
-    query_text: Optional[str] = ""
+    query_text: Optional[SanitizedString] = ""
 
 class PropertyResponse(BaseModel):
     id: str
