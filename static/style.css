@@ -55,11 +55,9 @@ body {
   margin-bottom: 30px;
 }
 
-.header h1 {
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--tg-primary);
-  margin-bottom: 8px;
+.header .logo {
+    max-width: 250px;
+    margin-bottom: 0.5rem;
 }
 
 .header p {

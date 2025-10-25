@@ -9,9 +9,45 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        #preloader {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #preloader img {
+            max-width: 200px;
+            margin-bottom: 20px;
+        }
+        #preloader p {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 16px;
+            color: #333;
+        }
+    </style>
 </head>
 <body>
+    <div id="preloader">
+        <img src="/static/assets/logo.jpg" alt="Don Estate">
+        <p>Загрузка...</p>
+    </div>
     <div id="root"></div>
     <script type="text/babel" src="/static/app.js"></script>
+    <script>
+        window.addEventListener('load', function() {
+            var preloader = document.getElementById('preloader');
+            if (preloader) {
+                preloader.style.display = 'none';
+            }
+        });
+    </script>
 </body>
 </html>
