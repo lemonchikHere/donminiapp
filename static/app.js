@@ -830,7 +830,7 @@ const DonEstateApp = () => {
     );
   };
 
-  const SearchScreen = () => (
+  const SearchScreen = ({ setCurrentScreen, handleSearchSubmit, searchProgress, searchForm, setSearchForm, setErrors, handleBlur, errors, handlePropertyTypeChange, isSubmitting }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1014,7 +1014,7 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const OfferScreen = () => (
+  const OfferScreen = ({ setCurrentScreen, handleOfferSubmit, offerProgress, offerForm, setOfferForm, setErrors, handleBlur, errors, isSubmitting, handleFileUpload, removePhoto, removeVideo, fileInputRef, videoInputRef, formatFileSize }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -1283,8 +1283,37 @@ const DonEstateApp = () => {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'search': return <SearchScreen />;
-      case 'offer': return <OfferScreen />;
+      case 'search':
+        return <SearchScreen
+          searchForm={searchForm}
+          setSearchForm={setSearchForm}
+          handleSearchSubmit={handleSearchSubmit}
+          errors={errors}
+          setErrors={setErrors}
+          isSubmitting={isSubmitting}
+          handleBlur={handleBlur}
+          handlePropertyTypeChange={handlePropertyTypeChange}
+          searchProgress={searchProgress}
+          setCurrentScreen={setCurrentScreen}
+        />;
+      case 'offer':
+        return <OfferScreen
+            offerForm={offerForm}
+            setOfferForm={setOfferForm}
+            handleOfferSubmit={handleOfferSubmit}
+            errors={errors}
+            setErrors={setErrors}
+            isSubmitting={isSubmitting}
+            handleBlur={handleBlur}
+            offerProgress={offerProgress}
+            setCurrentScreen={setCurrentScreen}
+            handleFileUpload={handleFileUpload}
+            removePhoto={removePhoto}
+            removeVideo={removeVideo}
+            fileInputRef={fileInputRef}
+            videoInputRef={videoInputRef}
+            formatFileSize={formatFileSize}
+        />;
       case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
@@ -1314,4 +1343,7 @@ const DonEstateApp = () => {
   );
 };
 
-ReactDOM.render(<DonEstateApp />, document.getElementById('root'));
+ReactDOM.render(
+    <DonEstateApp />,
+    document.getElementById('root')
+);
