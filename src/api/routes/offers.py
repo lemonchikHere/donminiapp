@@ -6,21 +6,22 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.services.notification_service import NotificationService # We can reuse this
 from src.config import settings
+from src.api.schemas import SanitizedString
 from aiogram import Bot
 
 router = APIRouter(prefix="/api/offers", tags=["Offers"])
 
 class OfferCreate(BaseModel):
-    transactionType: str
-    propertyType: str
-    address: str
-    area: Optional[str] = None
-    floors: Optional[str] = None
-    rooms: Optional[str] = None
-    price: Optional[str] = None
-    description: Optional[str] = None
-    name: str
-    phone: str
+    transactionType: SanitizedString
+    propertyType: SanitizedString
+    address: SanitizedString
+    area: Optional[SanitizedString] = None
+    floors: Optional[SanitizedString] = None
+    rooms: Optional[SanitizedString] = None
+    price: Optional[SanitizedString] = None
+    description: Optional[SanitizedString] = None
+    name: SanitizedString
+    phone: SanitizedString
 
 @router.post("/", status_code=status.HTTP_202_ACCEPTED)
 async def create_offer(
