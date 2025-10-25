@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: ankane/pgvector:latest
@@ -12,22 +10,31 @@ services:
     ports:
       - "5432:5432"
 
-  parser:
+  db_init:
     build: .
-    command: python src/parser/telegram_parser.py
+    command: python init_db.py
     depends_on:
       - postgres
     env_file:
       - .env
-    volumes:
-      - ./media:/app/media
-    restart: unless-stopped
+    restart: "no"
+
+  # parser:
+  #   build: .
+  #   command: python -m src.parser.telegram_parser
+  #   depends_on:
+  #     - db_init
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./media:/app/media
+  #   restart: unless-stopped
 
   api:
     build: .
     command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
     depends_on:
-      - postgres
+      - db_init
     env_file:
       - .env
     ports:

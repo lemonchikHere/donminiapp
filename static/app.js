@@ -40,6 +40,7 @@ const DonEstateApp = () => {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [mapProperties, setMapProperties] = useState([]);
@@ -63,6 +64,24 @@ const DonEstateApp = () => {
   /**
    * Effect to handle Telegram Web App theme changes.
    */
+  useEffect(() => {
+    // Dynamically load Yandex Maps API
+    const fetchConfigAndLoadMap = async () => {
+      try {
+        const response = await fetch('/api/config/');
+        const config = await response.json();
+        const script = document.createElement('script');
+        script.src = `https://api-maps.yandex.ru/2.1/?apikey=${config.yandex_maps_api_key}&lang=ru_RU`;
+        script.async = true;
+        document.head.appendChild(script);
+      } catch (error) {
+        console.error("Failed to load map config:", error);
+      }
+    };
+
+    fetchConfigAndLoadMap();
+  }, []);
+
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
       const tg = window.Telegram.WebApp;
@@ -369,6 +388,7 @@ const DonEstateApp = () => {
 
     setErrors({});
     setIsSubmitting(true);
+    setIsLoading(true); // Start loading
 
     try {
       const tg = window.Telegram.WebApp;
@@ -405,6 +425,7 @@ const DonEstateApp = () => {
       });
     } finally {
       setIsSubmitting(false);
+      setIsLoading(false); // End loading
     }
   };
 
@@ -424,14 +445,18 @@ const DonEstateApp = () => {
     setErrors({});
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Offer Form Data:', {
-        ...offerForm,
-        photos: offerForm.photos.map(f => ({ name: f.name, size: f.size, type: f.type })),
-        video: offerForm.video ? { name: offerForm.video.name, size: offerForm.video.size, type: offerForm.video.type } : null
+    try {
+      // We are not handling file uploads in this step to keep it simple
+      const { photos, video, ...formData } = offerForm;
+
+      const response = await fetch('/api/offers/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-      setIsSubmitting(false);
+
+      if (!response.ok) throw new Error('Failed to submit offer');
+
       setModal({
         type: 'success',
         message: '✅ Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.'
@@ -440,30 +465,28 @@ const DonEstateApp = () => {
       // Reset form and navigate back
       setTimeout(() => {
         setOfferForm({
-          transactionType: '',
-          propertyType: '',
-          address: '',
-          area: '',
-          floors: '',
-          rooms: '',
-          price: '',
-          description: '',
-          name: '',
-          phone: '',
-          photos: [],
-          video: null
+          transactionType: '', propertyType: '', address: '', area: '',
+          floors: '', rooms: '', price: '', description: '',
+          name: '', phone: '', photos: [], video: null
         });
         localStorage.removeItem('don_estate_offer_form');
         setModal(null);
         setCurrentScreen('main');
       }, 2000);
-    }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      setModal({ type: 'error', message: 'Не удалось отправить заявку.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   /**
    * Fetches the user's favorite properties from the API.
    */
   const fetchFavorites = async () => {
+    setIsLoading(true);
     try {
       const tg = window.Telegram.WebApp;
       const response = await fetch('/api/favorites/', {
@@ -477,6 +500,8 @@ const DonEstateApp = () => {
     } catch (error) {
       console.error(error);
       setModal({ type: 'error', message: 'Не удалось загрузить избранное.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -578,8 +603,33 @@ const DonEstateApp = () => {
           >
             🗺️ Карта
           </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setCurrentScreen('chat')}
+          >
+            💬 Чат с ассистентом
+          </button>
         </div>
       </div>
+    </div>
+  );
+
+  const SkeletonCard = () => (
+    <div className="property-card skeleton">
+      <div className="property-card__image-container skeleton-anim"></div>
+      <div className="property-card__content">
+        <div className="skeleton-text skeleton-anim"></div>
+        <div className="skeleton-text short skeleton-anim"></div>
+        <div className="skeleton-text long skeleton-anim"></div>
+      </div>
+    </div>
+  );
+
+  const EmptyState = ({ icon, title, message }) => (
+    <div className="empty-state">
+      <div className="empty-state__icon">{icon}</div>
+      <h2 className="empty-state__title">{title}</h2>
+      <p className="empty-state__message">{message}</p>
     </div>
   );
 
@@ -607,7 +657,28 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const ResultsScreen = ({ results, onToggleFavorite }) => (
+  const ResultsScreen = ({ results, onToggleFavorite, searchCriteria, isLoading }) => {
+    const handleSaveSearch = async () => {
+      try {
+        const tg = window.Telegram.WebApp;
+        const response = await fetch('/api/searches/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+          },
+          body: JSON.stringify({ criteria: searchCriteria }),
+        });
+        if (!response.ok) throw new Error('Failed to save search');
+        setModal({ type: 'success', message: '✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.' });
+        setTimeout(() => setModal(null), 2000);
+      } catch (error) {
+        console.error(error);
+        setModal({ type: 'error', message: 'Не удалось сохранить поиск.' });
+      }
+    };
+
+    return (
     <div className="screen">
       <div className="container">
         <button
@@ -618,9 +689,14 @@ const DonEstateApp = () => {
         </button>
         <div className="header">
           <h1>Результаты поиска</h1>
+          <button className="btn btn-secondary" onClick={handleSaveSearch}>
+            💾 Сохранить поиск
+          </button>
         </div>
         <div className="results-list">
-          {results.length > 0 ? (
+          {isLoading ? (
+            [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
+          ) : results.length > 0 ? (
             results.map(prop =>
               <PropertyCard
                 key={prop.id}
@@ -628,14 +704,18 @@ const DonEstateApp = () => {
                 onToggleFavorite={onToggleFavorite}
               />)
           ) : (
-            <p>Ничего не найдено. Попробуйте изменить критерии поиска.</p>
+            <EmptyState
+              icon="🤷"
+              title="Ничего не найдено"
+              message="Попробуйте изменить критерии поиска или расширить бюджет."
+            />
           )}
         </div>
       </div>
     </div>
   );
 
-  const FavoritesScreen = ({ favorites, onToggleFavorite }) => (
+  const FavoritesScreen = ({ favorites, onToggleFavorite, isLoading }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -648,7 +728,9 @@ const DonEstateApp = () => {
           <h1>Избранное</h1>
         </div>
         <div className="results-list">
-          {favorites.length > 0 ? (
+          {isLoading ? (
+            [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
+          ) : favorites.length > 0 ? (
             favorites.map(prop =>
               <PropertyCard
                 key={prop.id}
@@ -656,7 +738,11 @@ const DonEstateApp = () => {
                 onToggleFavorite={onToggleFavorite}
               />)
           ) : (
-            <p>Вы еще ничего не добавили в избранное.</p>
+            <EmptyState
+              icon="❤️"
+              title="Список избранного пуст"
+              message="Нажимайте на сердечко в карточках объектов, чтобы добавлять их сюда."
+            />
           )}
         </div>
       </div>
@@ -739,6 +825,101 @@ const DonEstateApp = () => {
         >
           📍 Мое местоположение
         </button>
+      </div>
+    );
+  };
+
+  const ChatScreen = () => {
+    const [messages, setMessages] = useState([
+      { sender: 'bot', text: 'Здравствуйте! Чем могу помочь?' }
+    ]);
+    const [inputValue, setInputValue] = useState('');
+    const [isBotTyping, setIsBotTyping] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(scrollToBottom, [messages]);
+
+    const handleSendMessage = async (e) => {
+      e.preventDefault();
+      if (!inputValue.trim()) return;
+
+      const userMessage = { sender: 'user', text: inputValue };
+      setMessages(prev => [...prev, userMessage]);
+      setInputValue('');
+      setIsBotTyping(true);
+
+      try {
+        const response = await fetch('/api/chat/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: inputValue }),
+        });
+
+        if (!response.ok) throw new Error('Failed to get response from bot');
+
+        const botResponse = await response.json();
+
+        let botMessage = { sender: 'bot', text: 'Извините, я не смог обработать ваш запрос.' };
+        if (botResponse.type === 'text') {
+          botMessage.text = botResponse.content;
+        } else if (botResponse.type === 'property_list') {
+          botMessage.text = botResponse.summary;
+          botMessage.properties = botResponse.properties;
+        }
+
+        setMessages(prev => [...prev, botMessage]);
+
+      } catch (error) {
+        console.error(error);
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Произошла ошибка. Попробуйте еще раз.' }]);
+      } finally {
+        setIsBotTyping(false);
+      }
+    };
+
+    return (
+      <div className="screen chat-screen">
+        <div className="chat-header">
+          <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀</button>
+          <h1>AI Ассистент</h1>
+        </div>
+        <div className="chat-messages">
+          {messages.map((msg, index) => (
+            <div key={index} className={`chat-bubble ${msg.sender}`}>
+              <p>{msg.text}</p>
+              {msg.properties && (
+                <div className="chat-property-cards">
+                  {msg.properties.map(prop => (
+                    <div key={prop.id} className="chat-property-card">
+                      {prop.photo_url && <img src={prop.photo_url} />}
+                      <div className="chat-property-card-info">
+                        <b>{prop.title}</b>
+                        <p>{prop.address}</p>
+                        <p>${prop.price_usd?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {isBotTyping && <div className="chat-bubble bot typing">...</div>}
+          <div ref={messagesEndRef} />
+        </div>
+        <form className="chat-input-form" onSubmit={handleSendMessage}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Спросите что-нибудь..."
+            disabled={isBotTyping}
+          />
+          <button type="submit" disabled={isBotTyping}>➤</button>
+        </form>
       </div>
     );
   };
@@ -1198,9 +1379,10 @@ const DonEstateApp = () => {
     switch (currentScreen) {
       case 'search': return <SearchScreen />;
       case 'offer': return <OfferScreen />;
-      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} />;
-      case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} />;
+      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
+      case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
+      case 'chat': return <ChatScreen />;
       default: return <MainScreen />;
     }
   };

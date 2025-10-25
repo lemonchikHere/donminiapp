@@ -15,6 +15,8 @@ from src.models.property import Property
 from .data_extractor import PropertyDataExtractor
 from .media_handler import MediaHandler
 from src.services.geocoding_service import geocoding_service
+from src.services.notification_service import NotificationService
+from aiogram import Bot
 
 class TelegramChannelParser:
     """
@@ -37,6 +39,8 @@ class TelegramChannelParser:
         self.extractor = PropertyDataExtractor()
         self.media_handler = MediaHandler()
         self.db_session = next(get_db())
+        self.bot = Bot(token=settings.BOT_TOKEN)
+        self.notification_service = NotificationService(self.bot, self.db_session)
         self.last_message_id = self._load_last_message_id()
 
     def _load_last_message_id(self) -> int:
@@ -162,7 +166,12 @@ class TelegramChannelParser:
         try:
             self.db_session.add(new_property)
             self.db_session.commit()
+            db.refresh(new_property)
             print(f"Successfully saved property from message {message.id}")
+
+            # After saving, trigger notification service
+            await self.notification_service.notify_on_new_property(new_property)
+
             self.last_message_id = message.id
             self._save_last_message_id(message.id)
         except Exception as e:

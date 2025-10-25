@@ -8,7 +8,9 @@ It serves as the entry point for the API service.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import search, properties, favorites, appointments, map
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from .routes import search, properties, favorites, appointments, map, searches, config, offers # chat temporarily disabled
 
 app = FastAPI(
     title="Don Estate API",
@@ -34,6 +36,13 @@ app.include_router(properties.router)
 app.include_router(favorites.router)
 app.include_router(appointments.router)
 app.include_router(map.router)
+# app.include_router(chat.router)
+app.include_router(searches.router)
+app.include_router(config.router)
+app.include_router(offers.router)
+
+# Serve Frontend
+app.mount("/", StaticFiles(directory="static", html = True), name="static")
 
 @app.get("/", tags=["Root"])
 async def root():
