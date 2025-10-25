@@ -1,15 +1,8 @@
-"""
-API endpoints for retrieving property details and finding similar properties.
-
-This router provides endpoints to get detailed information about a single
-property and to find other properties that are semantically similar based on
-vector embeddings.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
 from uuid import UUID
-from .search import PropertyResponse, SearchResponse
+from .search import PropertyResponse, SearchResponse # Reuse the response models
 from src.database import get_db
 from src.models.property import Property
 from src.models.user import Favorite, User
@@ -24,19 +17,7 @@ async def get_property_details(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Retrieves the full details for a single property by its ID.
-
-    Args:
-        property_id: The unique ID of the property to retrieve.
-        db: The database session.
-        current_user: The currently authenticated user.
-
-    Raises:
-        HTTPException: 404 if the property with the given ID is not found.
-
-    Returns:
-        A `PropertyResponse` object containing the detailed information for
-        the specified property.
+    Retrieves full details for a single property.
     """
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
@@ -54,7 +35,7 @@ async def get_property_details(
         rooms=prop.rooms,
         area_sqm=prop.area_sqm,
         address=prop.address,
-        description=prop.description[:200] + '...' if prop.description and len(prop.description) > 200 else prop.description,
+        description=prop.description,
         photos=prop.photos,
         similarity_score=None,
         telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",
@@ -68,22 +49,7 @@ async def get_similar_properties(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Finds properties that are semantically similar to a given property.
-
-    This endpoint uses vector similarity search (cosine distance) on the
-    property embeddings to find the most similar listings.
-
-    Args:
-        property_id: The ID of the property to use as the basis for the
-                     similarity search.
-        db: The database session.
-        current_user: The currently authenticated user.
-
-    Raises:
-        HTTPException: 404 if the source property or its embedding is not found.
-
-    Returns:
-        A `SearchResponse` object containing a list of similar properties.
+    Finds properties with similar embeddings.
     """
     source_prop = db.query(Property).filter(Property.id == property_id).first()
     if not source_prop or not source_prop.embedding:
@@ -97,7 +63,7 @@ async def get_similar_properties(
 
     # Format response
     properties_response = []
-    user_favorites_ids = {fav.property_id for fav in db.query(Favorite.property_id).filter(Favorite.user_id == current_user.id).all()}
+    user_favorites = {fav.property_id for fav in db.query(Favorite.property_id).filter(Favorite.user_id == current_user.id).all()}
 
     for prop, distance in results:
         properties_response.append(PropertyResponse(
@@ -111,7 +77,7 @@ async def get_similar_properties(
             photos=prop.photos,
             similarity_score=round(1 - distance, 2),
             telegram_link=f"https://t.me/c/{prop.telegram_channel_id}/{prop.telegram_message_id}",
-            is_favorite=prop.id in user_favorites_ids
+            is_favorite=prop.id in user_favorites
         ))
 
     return SearchResponse(
