@@ -1,11 +1,12 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Enum, Text, ARRAY
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Enum, Text
 from sqlalchemy.dialects.postgresql import UUID, BIGINT
-from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime
-from .base import Base
 
-class Property(Base):
+Base = declarative_base()
+
+class TestProperty(Base):
     __tablename__ = 'properties'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -25,10 +26,8 @@ class Property(Base):
     description = Column(Text)
     raw_text = Column(Text)
 
-    # Vector embedding for semantic search
-    embedding = Column(Vector(1536))
-
-    photos = Column(ARRAY(Text))
+    embedding = Column(Text)
+    photos = Column(Text)
     video_url = Column(Text)
     views_count = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
