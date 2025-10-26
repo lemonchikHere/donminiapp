@@ -111,12 +111,15 @@
     </script>
     <script type="text/babel" src="/static/app.js"></script>
     <script>
-        window.addEventListener('load', function() {
+        // Force hide preloader after 3 seconds to unblock UI for debugging,
+        // as the window.load event seems to be blocked by an error in app.js.
+        setTimeout(function() {
             var preloader = document.getElementById('preloader');
             if (preloader) {
+                console.log('Forcibly hiding preloader.');
                 preloader.style.display = 'none';
             }
-        });
+        }, 3000);
     </script>
 </body>
 </html>

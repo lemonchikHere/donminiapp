@@ -5,38 +5,37 @@ const apiCache = {};
 let mapScriptLoaded = false;
 
 const DonEstateApp = () => {
-  const [currentScreen, setCurrentScreen] = useState('main');
+  const [currentScreen, setCurrentScreen] = useState("main");
   const [modal, setModal] = useState(null);
-  const [toasts, setToasts] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Search form state
   const [searchForm, setSearchForm] = useState({
-    transactionType: '',
+    transactionType: "",
     propertyTypes: [],
-    rooms: '',
-    district: '',
-    budgetMin: '',
-    budgetMax: '',
-    requirements: '',
-    name: '',
-    phone: ''
+    rooms: "",
+    district: "",
+    budgetMin: "",
+    budgetMax: "",
+    requirements: "",
+    name: "",
+    phone: "",
   });
 
   // Offer form state
   const [offerForm, setOfferForm] = useState({
-    transactionType: '',
-    propertyType: '',
-    address: '',
-    area: '',
-    floors: '',
-    rooms: '',
-    price: '',
-    description: '',
-    name: '',
-    phone: '',
+    transactionType: "",
+    propertyType: "",
+    address: "",
+    area: "",
+    floors: "",
+    rooms: "",
+    price: "",
+    description: "",
+    name: "",
+    phone: "",
     photos: [],
-    video: null
+    video: null,
   });
 
   const [errors, setErrors] = useState({});
@@ -52,7 +51,6 @@ const DonEstateApp = () => {
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState(null);
 
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
@@ -61,33 +59,14 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const showToast = (message) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(toast => toast.id !== id));
-    }, 3000);
-  };
-
   useEffect(() => {
-    // Dynamically load Yandex Maps API and fetch config
+    // Dynamically load Yandex Maps API
     const fetchConfigAndLoadMap = async () => {
       try {
-        const tg = window.Telegram.WebApp;
-        const response = await fetch('/api/config/', {
-          headers: {
-            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
-          }
-        });
+        const response = await fetch("/api/config/");
         const config = await response.json();
-
-        // Set admin status
-        if (config.is_admin) {
-          setIsAdmin(true);
-        }
-
-        // Load Yandex Map
-        const script = document.createElement('script');
+        setIsAdmin(config.is_admin);
+        const script = document.createElement("script");
         script.src = `https://api-maps.yandex.ru/2.1/?apikey=${config.yandex_maps_api_key}&lang=ru_RU`;
         script.async = true;
         document.head.appendChild(script);
@@ -104,112 +83,121 @@ const DonEstateApp = () => {
       const tg = window.Telegram.WebApp;
 
       const applyTheme = () => {
-        if (tg.colorScheme === 'dark') {
-          document.documentElement.setAttribute('data-color-scheme', 'dark');
+        if (tg.colorScheme === "dark") {
+          document.documentElement.setAttribute("data-color-scheme", "dark");
         } else {
-          document.documentElement.setAttribute('data-color-scheme', 'light');
+          document.documentElement.setAttribute("data-color-scheme", "light");
         }
       };
 
-      tg.onEvent('themeChanged', applyTheme);
-
+      tg.onEvent("themeChanged", applyTheme);
       applyTheme(); // Apply theme on initial load
-
-      // Cleanup
       return () => {
-        tg.offEvent('themeChanged', applyTheme);
+        tg.offEvent("themeChanged", applyTheme);
       };
     }
   }, []);
 
-  // Load form data from sessionStorage on initial render
   useEffect(() => {
     try {
-      const savedSearchForm = sessionStorage.getItem('don_estate_search_form');
+      const savedSearchForm = localStorage.getItem("don_estate_search_form");
       if (savedSearchForm) {
         setSearchForm(JSON.parse(savedSearchForm));
       }
-
-      const savedOfferForm = sessionStorage.getItem('don_estate_offer_form');
+      const savedOfferForm = localStorage.getItem("don_estate_offer_form");
       if (savedOfferForm) {
-        // We don't restore photos/video as they are file objects
         const parsedOfferForm = JSON.parse(savedOfferForm);
         delete parsedOfferForm.photos;
         delete parsedOfferForm.video;
-        setOfferForm(prev => ({ ...prev, ...parsedOfferForm }));
+        setOfferForm((prev) => ({ ...prev, ...parsedOfferForm }));
       }
     } catch (error) {
-      console.error("Failed to load form data from sessionStorage", error);
+      console.error("Failed to load form data from localStorage", error);
     }
   }, []);
 
-  // Save search form data to sessionStorage
   useEffect(() => {
     try {
-      sessionStorage.setItem('don_estate_search_form', JSON.stringify(searchForm));
+      localStorage.setItem(
+        "don_estate_search_form",
+        JSON.stringify(searchForm),
+      );
     } catch (error) {
-      console.error("Failed to save search form data to sessionStorage", error);
+      console.error("Failed to save search form data to localStorage", error);
     }
   }, [searchForm]);
 
-  // Save offer form data to sessionStorage (excluding files)
   useEffect(() => {
     try {
       const { photos, video, ...formDataToSave } = offerForm;
-      sessionStorage.setItem('don_estate_offer_form', JSON.stringify(formDataToSave));
+      localStorage.setItem(
+        "don_estate_offer_form",
+        JSON.stringify(formDataToSave),
+      );
     } catch (error) {
-      console.error("Failed to save offer form data to sessionStorage", error);
+      console.error("Failed to save offer form data to localStorage", error);
     }
   }, [offerForm]);
 
   useEffect(() => {
-    const requiredFields = ['transactionType', 'propertyTypes', 'name', 'phone'];
-    const filledFields = requiredFields.filter(field => {
+    const requiredFields = [
+      "transactionType",
+      "propertyTypes",
+      "name",
+      "phone",
+    ];
+    const filledFields = requiredFields.filter((field) => {
       const value = searchForm[field];
-      if (Array.isArray(value)) {
-        return value.length > 0;
-      }
-      return !!value;
+      return Array.isArray(value) ? value.length > 0 : !!value;
     }).length;
-
     setSearchProgress((filledFields / requiredFields.length) * 100);
   }, [searchForm]);
 
   useEffect(() => {
-    const requiredFields = ['transactionType', 'propertyType', 'address', 'name', 'phone'];
-    const filledFields = requiredFields.filter(field => !!offerForm[field]).length;
-
+    const requiredFields = [
+      "transactionType",
+      "propertyType",
+      "address",
+      "name",
+      "phone",
+    ];
+    const filledFields = requiredFields.filter(
+      (field) => !!offerForm[field],
+    ).length;
     setOfferProgress((filledFields / requiredFields.length) * 100);
   }, [offerForm]);
 
-  const validatePhone = (phone) => {
-    const pattern = /^[+]?[0-9]{10,15}$/;
-    return pattern.test(phone.replace(/[\s\-\(\)]/g, ''));
-  };
+  const validatePhone = (phone) =>
+    /^[+]?[0-9]{10,15}$/.test(phone.replace(/[\s\-()]/g, ""));
 
   const validateField = (form, name, value) => {
-    const currentForm = form === 'search' ? searchForm : offerForm;
-
+    const currentForm = form === "search" ? searchForm : offerForm;
     switch (name) {
-      case 'transactionType':
-        return !value ? 'Выберите тип сделки' : null;
-      case 'propertyTypes':
-        return value.length === 0 ? 'Выберите хотя бы один тип недвижимости' : null;
-      case 'name':
-        return !value.trim() ? 'Введите ваше имя' : null;
-      case 'phone':
-        if (!value.trim()) return 'Введите номер телефона';
-        if (!validatePhone(value)) return 'Введите корректный номер телефона';
+      case "transactionType":
+        return !value ? "Выберите тип сделки" : null;
+      case "propertyTypes":
+        return value.length === 0
+          ? "Выберите хотя бы один тип недвижимости"
+          : null;
+      case "name":
+        return !value.trim() ? "Введите ваше имя" : null;
+      case "phone":
+        if (!value.trim()) return "Введите номер телефона";
+        if (!validatePhone(value)) return "Введите корректный номер телефона";
         return null;
-      case 'budgetMax':
-        if (currentForm.budgetMin && value && parseFloat(value) <= parseFloat(currentForm.budgetMin)) {
-          return 'Максимальная сумма должна быть больше минимальной';
+      case "budgetMax":
+        if (
+          currentForm.budgetMin &&
+          value &&
+          parseFloat(value) <= parseFloat(currentForm.budgetMin)
+        ) {
+          return "Максимальная сумма должна быть больше минимальной";
         }
         return null;
-      case 'propertyType':
-        return !value ? 'Выберите тип недвижимости' : null;
-      case 'address':
-        return !value.trim() ? 'Введите адрес' : null;
+      case "propertyType":
+        return !value ? "Выберите тип недвижимости" : null;
+      case "address":
+        return !value.trim() ? "Введите адрес" : null;
       default:
         return null;
     }
@@ -218,124 +206,108 @@ const DonEstateApp = () => {
   const handleBlur = (form) => (e) => {
     const { name, value } = e.target;
     const error = validateField(form, name, value);
-    setErrors(prev => ({ ...prev, [name]: error }));
+    setErrors((prev) => ({ ...prev, [name]: error }));
   };
 
   const validateSearchForm = () => {
-    const fieldsToValidate = ['transactionType', 'propertyTypes', 'name', 'phone', 'budgetMax'];
+    const fieldsToValidate = [
+      "transactionType",
+      "propertyTypes",
+      "name",
+      "phone",
+      "budgetMax",
+    ];
     const newErrors = {};
-    fieldsToValidate.forEach(field => {
-      const error = validateField('search', field, searchForm[field]);
-      if (error) {
-        newErrors[field] = error;
-      }
+    fieldsToValidate.forEach((field) => {
+      const error = validateField("search", field, searchForm[field]);
+      if (error) newErrors[field] = error;
     });
     return newErrors;
   };
 
   const validateOfferForm = () => {
-    const fieldsToValidate = ['transactionType', 'propertyType', 'address', 'name', 'phone'];
+    const fieldsToValidate = [
+      "transactionType",
+      "propertyType",
+      "address",
+      "name",
+      "phone",
+    ];
     const newErrors = {};
-    fieldsToValidate.forEach(field => {
-      const error = validateField('offer', field, offerForm[field]);
-      if (error) {
-        newErrors[field] = error;
-      }
+    fieldsToValidate.forEach((field) => {
+      const error = validateField("offer", field, offerForm[field]);
+      if (error) newErrors[field] = error;
     });
     return newErrors;
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${["Bytes", "KB", "MB", "GB"][i]}`;
   };
 
   const handleFileUpload = (files, type) => {
     const fileArray = Array.from(files);
-
-    if (type === 'photos') {
-      const validFiles = fileArray.filter(file => {
-        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-        const maxSize = 5 * 1024 * 1024; // 5MB
-        return validTypes.includes(file.type) && file.size <= maxSize;
-      });
-
-      const currentPhotos = offerForm.photos.length;
-      const totalPhotos = currentPhotos + validFiles.length;
-
-      if (totalPhotos > 10) {
-        showToast('Максимум 10 фотографий разрешено');
+    if (type === "photos") {
+      const validFiles = fileArray.filter(
+        (file) =>
+          ["image/jpeg", "image/png", "image/webp"].includes(file.type) &&
+          file.size <= 5 * 1024 * 1024,
+      );
+      if (offerForm.photos.length + validFiles.length > 10) {
+        setModal({ type: "error", message: "Максимум 10 фотографий" });
         return;
       }
-
-      setOfferForm(prev => ({
+      setOfferForm((prev) => ({
         ...prev,
-        photos: [...prev.photos, ...validFiles]
+        photos: [...prev.photos, ...validFiles],
       }));
-    } else if (type === 'video') {
+    } else if (type === "video") {
       const file = fileArray[0];
-      const validTypes = ['video/mp4', 'video/mov'];
-      const maxSize = 50 * 1024 * 1024; // 50MB
-
-      if (!validTypes.includes(file.type)) {
-        showToast('Поддерживаются только файлы MP4 и MOV');
+      if (
+        !["video/mp4", "video/mov"].includes(file.type) ||
+        file.size > 50 * 1024 * 1024
+      ) {
+        setModal({
+          type: "error",
+          message: "Видео должно быть MP4/MOV и до 50МБ",
+        });
         return;
       }
-
-      if (file.size > maxSize) {
-        showToast('Размер видео не должен превышать 50 МБ');
-        return;
-      }
-
-      setOfferForm(prev => ({ ...prev, video: file }));
+      setOfferForm((prev) => ({ ...prev, video: file }));
     }
   };
 
-  const removePhoto = (index) => {
-    setOfferForm(prev => ({
+  const removePhoto = (index) =>
+    setOfferForm((prev) => ({
       ...prev,
-      photos: prev.photos.filter((_, i) => i !== index)
+      photos: prev.photos.filter((_, i) => i !== index),
     }));
-  };
-
-  const removeVideo = () => {
-    setOfferForm(prev => ({ ...prev, video: null }));
-  };
+  const removeVideo = () => setOfferForm((prev) => ({ ...prev, video: null }));
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.currentTarget.classList.add('dragover');
+    e.currentTarget.classList.add("dragover");
   };
-
   const handleDragLeave = (e) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
+    e.currentTarget.classList.remove("dragover");
   };
-
   const handleDrop = (e, type) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    handleFileUpload(files, type);
+    e.currentTarget.classList.remove("dragover");
+    handleFileUpload(e.dataTransfer.files, type);
   };
 
   const handleSearchSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateSearchForm();
-
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      const firstErrorField = Object.keys(validationErrors)[0];
-      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
-      if (errorElement) {
-        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
       return;
     }
-
     setErrors({});
     setIsSubmitting(true);
     setIsLoading(true);
@@ -366,16 +338,13 @@ const DonEstateApp = () => {
       const response = await fetch('/api/search?offset=0&limit=20', { // Fetch first page
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+          "Content-Type": "application/json",
+          "x-telegram-user-id": tg.initDataUnsafe?.user?.id || "0",
         },
         body: JSON.stringify(searchRequestBody),
       });
-
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
       apiCache[initialCacheKey] = data; // Cache the first page
       setSearchResults(data.results);
@@ -385,86 +354,59 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to fetch search results:", error);
-      showToast('Не удалось выполнить поиск. Пожалуйста, попробуйте еще раз.');
+      setModal({
+        type: "error",
+        message: "Не удалось выполнить поиск. Попробуйте еще раз.",
+      });
     } finally {
       setIsSubmitting(false);
       setIsLoading(false);
     }
   };
 
-  const handleOfferSubmit = (e) => {
+  const handleOfferSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validateOfferForm();
-
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      const firstErrorField = Object.keys(validationErrors)[0];
-      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
-      if (errorElement) {
-        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
       return;
     }
-
     setErrors({});
     setIsSubmitting(true);
-    setUploadProgress(0);
-
-    const formData = new FormData();
-    Object.keys(offerForm).forEach(key => {
-        if (key === 'photos') {
-            offerForm.photos.forEach(photo => formData.append('photos', photo, photo.name));
-        } else if (key === 'video') {
-            if (offerForm.video) {
-                formData.append('video', offerForm.video, offerForm.video.name);
-            }
-        } else {
-            formData.append(key, offerForm[key]);
-        }
-    });
-
-    const xhr = new XMLHttpRequest();
-
-    xhr.open('POST', '/api/offers/', true);
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percentComplete = (event.loaded / event.total) * 100;
-        setUploadProgress(percentComplete);
-      }
-    };
-
-    xhr.onload = () => {
-      setIsSubmitting(false);
-      if (xhr.status >= 200 && xhr.status < 300) {
-        setModal({
-          type: 'success',
-          message: '✅ Заявка успешно отправлена на модерацию!'
+    try {
+      const { photos, video, ...formData } = offerForm;
+      const response = await fetch("/api/offers/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!response.ok) throw new Error("Failed to submit offer");
+      setModal({ type: "success", message: "✅ Заявка успешно отправлена!" });
+      setTimeout(() => {
+        setOfferForm({
+          transactionType: "",
+          propertyType: "",
+          address: "",
+          area: "",
+          floors: "",
+          rooms: "",
+          price: "",
+          description: "",
+          name: "",
+          phone: "",
+          photos: [],
+          video: null,
         });
-        setTimeout(() => {
-          setOfferForm({
-            transactionType: '', propertyType: '', address: '', area: '',
-            floors: '', rooms: '', price: '', description: '',
-            name: '', phone: '', photos: [], video: null
-          });
-          sessionStorage.removeItem('don_estate_offer_form');
-          setModal(null);
-          setUploadProgress(null);
-          setCurrentScreen('main');
-        }, 2000);
-      } else {
-        showToast('Не удалось отправить заявку. Попробуйте снова.');
-        setUploadProgress(null);
-      }
-    };
-
-    xhr.onerror = () => {
+        localStorage.removeItem("don_estate_offer_form");
+        setModal(null);
+        setCurrentScreen("main");
+      }, 2000);
+    } catch (error) {
+      console.error(error);
+      setModal({ type: "error", message: "Не удалось отправить заявку." });
+    } finally {
       setIsSubmitting(false);
-      showToast('Произошла сетевая ошибка. Проверьте подключение.');
-      setUploadProgress(null);
-    };
-
-    xhr.send(formData);
+    }
   };
 
   const fetchFavorites = async () => {
@@ -477,18 +419,16 @@ const DonEstateApp = () => {
     setIsLoading(true);
     try {
       const tg = window.Telegram.WebApp;
-      const response = await fetch('/api/favorites/', {
-        headers: {
-          'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
-        },
+      const response = await fetch("/api/favorites/", {
+        headers: { "x-telegram-user-id": tg.initDataUnsafe?.user?.id || "0" },
       });
-      if (!response.ok) throw new Error('Failed to fetch favorites');
+      if (!response.ok) throw new Error("Failed to fetch favorites");
       const data = await response.json();
       apiCache[cacheKey] = data; // Cache the response
       setFavorites(data);
     } catch (error) {
       console.error(error);
-      showToast('Не удалось загрузить избранное.');
+      setModal({ type: "error", message: "Не удалось загрузить избранное." });
     } finally {
       setIsLoading(false);
     }
@@ -497,21 +437,19 @@ const DonEstateApp = () => {
   const handleToggleFavorite = async (propertyId, isFavorite) => {
     try {
       const tg = window.Telegram.WebApp;
-      const method = isFavorite ? 'POST' : 'DELETE';
+      const method = isFavorite ? "POST" : "DELETE";
       const url = isFavorite
-        ? '/api/favorites/'
+        ? "/api/favorites/"
         : `/api/favorites/${propertyId}`;
-
       const response = await fetch(url, {
-        method: method,
+        method,
         headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+          "Content-Type": "application/json",
+          "x-telegram-user-id": tg.initDataUnsafe?.user?.id || "0",
         },
         body: isFavorite ? JSON.stringify({ property_id: propertyId }) : null,
       });
-
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -523,28 +461,27 @@ const DonEstateApp = () => {
       setSearchResults(prev => prev.map(updateProperty));
 
       if (isFavorite) {
-        // Find the property in search results and add to favorites
-        const propToAdd = searchResults.find(p => p.id === propertyId);
-        if (propToAdd) {
-            setFavorites(prev => [...prev, { ...propToAdd, is_favorite: true }]);
-        }
+        const propToAdd = searchResults.find((p) => p.id === propertyId);
+        if (propToAdd)
+          setFavorites((prev) => [
+            ...prev,
+            { ...propToAdd, is_favorite: true },
+          ]);
       } else {
-        // Remove from favorites
-        setFavorites(prev => prev.filter(p => p.id !== propertyId));
+        setFavorites((prev) => prev.filter((p) => p.id !== propertyId));
       }
-
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
-      showToast('Не удалось обновить избранное.');
+      setModal({ type: "error", message: "Не удалось обновить избранное." });
     }
   };
 
   const handlePropertyTypeChange = (type, checked) => {
-    setSearchForm(prev => ({
+    setSearchForm((prev) => ({
       ...prev,
       propertyTypes: checked
         ? [...prev.propertyTypes, type]
-        : prev.propertyTypes.filter(t => t !== type)
+        : prev.propertyTypes.filter((t) => t !== type),
     }));
   };
 
@@ -552,49 +489,44 @@ const DonEstateApp = () => {
     <div className="screen">
       <div className="container">
         <div className="header">
-          <img src="/static/assets/logo.jpg" alt="Don Estate" className="logo" />
+          <img
+            src="/static/assets/logo.jpg"
+            alt="Don Estate"
+            className="logo"
+          />
           <p>Агентство недвижимости в Донецке</p>
         </div>
-
         <div className="main-buttons">
           <button
             className="btn btn-primary"
-            onClick={() => setCurrentScreen('search')}
+            onClick={() => setCurrentScreen("search")}
           >
             🔍 Найти недвижимость
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => setCurrentScreen('offer')}
+            onClick={() => setCurrentScreen("offer")}
           >
             🏠 Предложить объект
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => setCurrentScreen('favorites')}
+            onClick={() => setCurrentScreen("favorites")}
           >
             ❤️ Избранное
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => setCurrentScreen('map')}
+            onClick={() => setCurrentScreen("map")}
           >
             🗺️ Карта
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => setCurrentScreen('chat')}
+            onClick={() => setCurrentScreen("chat")}
           >
             💬 Чат с ассистентом
           </button>
-          {isAdmin && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => setCurrentScreen('moderation')}
-            >
-              🔧 Модерация
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -623,12 +555,16 @@ const DonEstateApp = () => {
     <div className="property-card">
       <div className="property-card__image-container">
         {property.photos && property.photos.length > 0 ? (
-          <img src={property.photos[0]} alt={property.title} className="property-card__image" />
+          <img
+            src={property.photos[0]}
+            alt={property.title}
+            className="property-card__image"
+          />
         ) : (
           <div className="property-card__no-image">Нет фото</div>
         )}
         <button
-          className={`property-card__favorite-btn ${property.is_favorite ? 'active' : ''}`}
+          className={`property-card__favorite-btn ${property.is_favorite ? "active" : ""}`}
           onClick={() => onToggleFavorite(property.id, !property.is_favorite)}
         >
           ❤️
@@ -636,8 +572,14 @@ const DonEstateApp = () => {
       </div>
       <div className="property-card__content">
         <h3 className="property-card__title">{property.title}</h3>
-        <p className="property-card__price">{property.price_usd ? `$${property.price_usd.toLocaleString()}` : 'Цена не указана'}</p>
-        <p className="property-card__address">{property.address || 'Адрес не указан'}</p>
+        <p className="property-card__price">
+          {property.price_usd
+            ? `$${property.price_usd.toLocaleString()}`
+            : "Цена не указана"}
+        </p>
+        <p className="property-card__address">
+          {property.address || "Адрес не указан"}
+        </p>
         <p className="property-card__description">{property.description}</p>
       </div>
     </div>
@@ -712,23 +654,26 @@ const DonEstateApp = () => {
     const handleSaveSearch = async () => {
       try {
         const tg = window.Telegram.WebApp;
-        const response = await fetch('/api/searches/', {
-          method: 'POST',
+        const response = await fetch("/api/searches/", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+            "Content-Type": "application/json",
+            "x-telegram-user-id": tg.initDataUnsafe?.user?.id || "0",
           },
           body: JSON.stringify({ criteria: searchCriteria }),
         });
-        if (!response.ok) throw new Error('Failed to save search');
-        setModal({ type: 'success', message: '✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.' });
+        if (!response.ok) throw new Error("Failed to save search");
+        setModal({
+          type: "success",
+          message:
+            "✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.",
+        });
         setTimeout(() => setModal(null), 2000);
       } catch (error) {
         console.error(error);
-        showToast('Не удалось сохранить поиск.');
+        setModal({ type: "error", message: "Не удалось сохранить поиск." });
       }
     };
-
     return (
     <div className="screen">
       <div className="container">
@@ -764,15 +709,15 @@ const DonEstateApp = () => {
           {isFetchingMore && <SkeletonCard />}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const FavoritesScreen = ({ favorites, onToggleFavorite, isLoading }) => (
     <div className="screen">
       <div className="container">
         <button
           className="btn btn-back"
-          onClick={() => setCurrentScreen('main')}
+          onClick={() => setCurrentScreen("main")}
         >
           ◀ Назад
         </button>
@@ -783,12 +728,13 @@ const DonEstateApp = () => {
           {isLoading ? (
             [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
           ) : favorites.length > 0 ? (
-            favorites.map(prop =>
+            favorites.map((prop) => (
               <PropertyCard
                 key={prop.id}
                 property={prop}
                 onToggleFavorite={onToggleFavorite}
-              />)
+              />
+            ))
           ) : (
             <EmptyState
               icon="❤️"
@@ -804,21 +750,17 @@ const DonEstateApp = () => {
   const MapScreen = () => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
-    const [isMapLoading, setIsMapLoading] = useState(true);
-
     const handleMyLocation = () => {
       if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.requestLocation((loc) => {
           if (mapInstance.current) {
             const userCoords = [loc.latitude, loc.longitude];
             mapInstance.current.setCenter(userCoords, 14);
-            // Add a placemark for the user's location
-            const userPlacemark = new ymaps.Placemark(userCoords, {
-              hintContent: 'Вы здесь'
-            }, {
-              preset: 'islands#geolocationIcon',
-              iconColor: '#ff0000'
-            });
+            const userPlacemark = new ymaps.Placemark(
+              userCoords,
+              { hintContent: "Вы здесь" },
+              { preset: "islands#geolocationIcon", iconColor: "#ff0000" },
+            );
             mapInstance.current.geoObjects.add(userPlacemark);
           }
         });
@@ -856,19 +798,9 @@ const DonEstateApp = () => {
         const savedMapState = JSON.parse(sessionStorage.getItem('don_estate_map_state'));
 
         mapInstance.current = new ymaps.Map(mapRef.current, {
-          center: savedMapState?.center || [48.015, 37.802], // Donetsk center
-          zoom: savedMapState?.zoom || 12
+          center: [48.015, 37.802],
+          zoom: 12,
         });
-
-        mapInstance.current.events.add(['boundschange'], () => {
-            const mapState = {
-                center: mapInstance.current.getCenter(),
-                zoom: mapInstance.current.getZoom()
-            };
-            sessionStorage.setItem('don_estate_map_state', JSON.stringify(mapState));
-        });
-
-        // Fetch properties and add placemarks
         fetchMapProperties(mapInstance.current);
       };
 
@@ -878,7 +810,6 @@ const DonEstateApp = () => {
         // We don't destroy the map instance to preserve it across screen changes
       };
     }, []);
-
     const fetchMapProperties = async (map) => {
       const cacheKey = 'map_properties';
       if (apiCache[cacheKey]) {
@@ -896,40 +827,40 @@ const DonEstateApp = () => {
       }
 
       try {
-        const response = await fetch('/api/map/properties');
-        if (!response.ok) throw new Error('Failed to fetch map properties');
+        const response = await fetch("/api/map/properties");
+        if (!response.ok) throw new Error("Failed to fetch map properties");
         const properties = await response.json();
         apiCache[cacheKey] = properties; // Cache the response
         setMapProperties(properties);
-
-        properties.forEach(prop => {
-          const placemark = new ymaps.Placemark([prop.latitude, prop.longitude], {
-            balloonContentHeader: prop.title,
-            balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
-            hintContent: prop.title
-          });
+        properties.forEach((prop) => {
+          const placemark = new ymaps.Placemark(
+            [prop.latitude, prop.longitude],
+            {
+              balloonContentHeader: prop.title,
+              balloonContentBody: `$${prop.price_usd.toLocaleString()}`,
+              hintContent: prop.title,
+            },
+          );
           map.geoObjects.add(placemark);
         });
-
       } catch (error) {
         console.error(error);
-        showToast('Не удалось загрузить объекты на карте.');
-      } finally {
-        setIsMapLoading(false);
+        setModal({
+          type: "error",
+          message: "Не удалось загрузить объекты на карте.",
+        });
       }
     };
-
     return (
       <div className="screen map-screen">
-        {isMapLoading && (
-          <div className="spinner-overlay">
-            <div className="spinner"></div>
-          </div>
-        )}
-        <div id="map" ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
+        <div
+          id="map"
+          ref={mapRef}
+          style={{ width: "100%", height: "100%" }}
+        ></div>
         <button
           className="btn btn-back map-back-btn"
-          onClick={() => setCurrentScreen('main')}
+          onClick={() => setCurrentScreen("main")}
         >
           ◀ Назад
         </button>
@@ -945,64 +876,58 @@ const DonEstateApp = () => {
 
   const ChatScreen = () => {
     const [messages, setMessages] = useState([
-      { sender: 'bot', text: 'Здравствуйте! Чем могу помочь?' }
+      { sender: "bot", text: "Здравствуйте! Чем могу помочь?" },
     ]);
-    const [inputValue, setInputValue] = useState(sessionStorage.getItem('don_estate_chat_input') || '');
+    const [inputValue, setInputValue] = useState("");
     const [isBotTyping, setIsBotTyping] = useState(false);
     const messagesEndRef = useRef(null);
-
-    useEffect(() => {
-        sessionStorage.setItem('don_estate_chat_input', inputValue);
-    }, [inputValue]);
-
-    const scrollToBottom = () => {
+    const scrollToBottom = () =>
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
     useEffect(scrollToBottom, [messages]);
-
     const handleSendMessage = async (e) => {
       e.preventDefault();
       if (!inputValue.trim()) return;
-
-      const userMessage = { sender: 'user', text: inputValue };
-      setMessages(prev => [...prev, userMessage]);
-      setInputValue('');
+      const userMessage = { sender: "user", text: inputValue };
+      setMessages((prev) => [...prev, userMessage]);
+      setInputValue("");
       setIsBotTyping(true);
-
       try {
-        const response = await fetch('/api/chat/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/chat/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: inputValue }),
         });
-
-        if (!response.ok) throw new Error('Failed to get response from bot');
-
+        if (!response.ok) throw new Error("Failed to get response from bot");
         const botResponse = await response.json();
-
-        let botMessage = { sender: 'bot', text: 'Извините, я не смог обработать ваш запрос.' };
-        if (botResponse.type === 'text') {
-          botMessage.text = botResponse.content;
-        } else if (botResponse.type === 'property_list') {
+        let botMessage = {
+          sender: "bot",
+          text: "Извините, я не смог обработать ваш запрос.",
+        };
+        if (botResponse.type === "text") botMessage.text = botResponse.content;
+        else if (botResponse.type === "property_list") {
           botMessage.text = botResponse.summary;
           botMessage.properties = botResponse.properties;
         }
-
-        setMessages(prev => [...prev, botMessage]);
-
+        setMessages((prev) => [...prev, botMessage]);
       } catch (error) {
         console.error(error);
-        showToast('Произошла ошибка. Попробуйте еще раз.');
+        setMessages((prev) => [
+          ...prev,
+          { sender: "bot", text: "Произошла ошибка. Попробуйте еще раз." },
+        ]);
       } finally {
         setIsBotTyping(false);
       }
     };
-
     return (
       <div className="screen chat-screen">
         <div className="chat-header">
-          <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀</button>
+          <button
+            className="btn btn-back"
+            onClick={() => setCurrentScreen("main")}
+          >
+            ◀
+          </button>
           <h1>AI Ассистент</h1>
         </div>
         <div className="chat-messages">
@@ -1011,7 +936,7 @@ const DonEstateApp = () => {
               <p>{msg.text}</p>
               {msg.properties && (
                 <div className="chat-property-cards">
-                  {msg.properties.map(prop => (
+                  {msg.properties.map((prop) => (
                     <div key={prop.id} className="chat-property-card">
                       {prop.photo_url && <img src={prop.photo_url} />}
                       <div className="chat-property-card-info">
@@ -1025,11 +950,7 @@ const DonEstateApp = () => {
               )}
             </div>
           ))}
-          {isBotTyping && (
-            <div className="chat-bubble bot typing">
-              <div className="spinner"></div>
-            </div>
-          )}
+          {isBotTyping && <div className="chat-bubble bot typing">...</div>}
           <div ref={messagesEndRef} />
         </div>
         <form className="chat-input-form" onSubmit={handleSendMessage}>
@@ -1040,7 +961,9 @@ const DonEstateApp = () => {
             placeholder="Спросите что-нибудь..."
             disabled={isBotTyping}
           />
-          <button type="submit" disabled={isBotTyping}>➤</button>
+          <button type="submit" disabled={isBotTyping}>
+            ➤
+          </button>
         </form>
       </div>
     );
@@ -1051,31 +974,34 @@ const DonEstateApp = () => {
       <div className="container">
         <button
           className="btn btn-back"
-          onClick={() => setCurrentScreen('main')}
+          onClick={() => setCurrentScreen("main")}
         >
           ◀ Назад
         </button>
-
         <div className="header">
           <h1>Найти недвижимость</h1>
         </div>
-
         <form className="form" onSubmit={handleSearchSubmit}>
           <ProgressBar progress={searchProgress} />
           <div className="form-group">
-            <label className="form-label">Тип сделки <span className="required">*</span></label>
+            <label className="form-label">
+              Тип сделки <span className="required">*</span>
+            </label>
             <div className="radio-group">
               <label className="radio-option">
                 <input
                   type="radio"
                   name="transactionType"
                   value="Купить"
-                  checked={searchForm.transactionType === 'Купить'}
+                  checked={searchForm.transactionType === "Купить"}
                   onChange={(e) => {
-                    setSearchForm(prev => ({ ...prev, transactionType: e.target.value }));
-                    setErrors(prev => ({ ...prev, transactionType: null }));
+                    setSearchForm((prev) => ({
+                      ...prev,
+                      transactionType: e.target.value,
+                    }));
+                    setErrors((prev) => ({ ...prev, transactionType: null }));
                   }}
-                  onBlur={handleBlur('search')}
+                  onBlur={handleBlur("search")}
                 />
                 Купить
               </label>
@@ -1084,23 +1010,29 @@ const DonEstateApp = () => {
                   type="radio"
                   name="transactionType"
                   value="Снять"
-                  checked={searchForm.transactionType === 'Снять'}
+                  checked={searchForm.transactionType === "Снять"}
                   onChange={(e) => {
-                    setSearchForm(prev => ({ ...prev, transactionType: e.target.value }));
-                    setErrors(prev => ({ ...prev, transactionType: null }));
+                    setSearchForm((prev) => ({
+                      ...prev,
+                      transactionType: e.target.value,
+                    }));
+                    setErrors((prev) => ({ ...prev, transactionType: null }));
                   }}
-                  onBlur={handleBlur('search')}
+                  onBlur={handleBlur("search")}
                 />
                 Снять
               </label>
             </div>
-            {errors.transactionType && <div className="error-message">{errors.transactionType}</div>}
+            {errors.transactionType && (
+              <div className="error-message">{errors.transactionType}</div>
+            )}
           </div>
-
           <div className="form-group">
-            <label className="form-label">Тип недвижимости <span className="required">*</span></label>
+            <label className="form-label">
+              Тип недвижимости <span className="required">*</span>
+            </label>
             <div className="checkbox-group">
-              {['Квартира', 'Дом', 'Коммерческая недвижимость'].map(type => (
+              {["Квартира", "Дом", "Коммерческая недвижимость"].map((type) => (
                 <label key={type} className="checkbox-option">
                   <input
                     type="checkbox"
@@ -1108,31 +1040,35 @@ const DonEstateApp = () => {
                     checked={searchForm.propertyTypes.includes(type)}
                     onChange={(e) => {
                       handlePropertyTypeChange(type, e.target.checked);
-                      setErrors(prev => ({ ...prev, propertyTypes: null }));
+                      setErrors((prev) => ({ ...prev, propertyTypes: null }));
                     }}
-                    onBlur={handleBlur('search')}
+                    onBlur={handleBlur("search")}
                   />
                   {type}
                 </label>
               ))}
             </div>
-            {errors.propertyTypes && <div className="error-message">{errors.propertyTypes}</div>}
+            {errors.propertyTypes && (
+              <div className="error-message">{errors.propertyTypes}</div>
+            )}
           </div>
-
           <div className="form-group">
             <label className="form-label">Количество комнат</label>
             <select
               className="form-select"
               value={searchForm.rooms}
-              onChange={(e) => setSearchForm(prev => ({ ...prev, rooms: e.target.value }))}
+              onChange={(e) =>
+                setSearchForm((prev) => ({ ...prev, rooms: e.target.value }))
+              }
             >
               <option value="">Выберите</option>
-              {['Студия', '1', '2', '3', '4', '5+'].map(rooms => (
-                <option key={rooms} value={rooms}>{rooms}</option>
+              {["Студия", "1", "2", "3", "4", "5+"].map((rooms) => (
+                <option key={rooms} value={rooms}>
+                  {rooms}
+                </option>
               ))}
             </select>
           </div>
-
           <div className="form-group">
             <label className="form-label">Район</label>
             <input
@@ -1140,10 +1076,11 @@ const DonEstateApp = () => {
               className="form-input"
               placeholder="Например: Ворошиловский район"
               value={searchForm.district}
-              onChange={(e) => setSearchForm(prev => ({ ...prev, district: e.target.value }))}
+              onChange={(e) =>
+                setSearchForm((prev) => ({ ...prev, district: e.target.value }))
+              }
             />
           </div>
-
           <div className="form-group">
             <label className="form-label">Бюджет</label>
             <div className="form-row">
@@ -1153,7 +1090,12 @@ const DonEstateApp = () => {
                   className="form-input"
                   placeholder="От $"
                   value={searchForm.budgetMin}
-                  onChange={(e) => setSearchForm(prev => ({ ...prev, budgetMin: e.target.value }))}
+                  onChange={(e) =>
+                    setSearchForm((prev) => ({
+                      ...prev,
+                      budgetMin: e.target.value,
+                    }))
+                  }
                 />
               </div>
               <div className="form-group">
@@ -1164,44 +1106,55 @@ const DonEstateApp = () => {
                   placeholder="До $"
                   value={searchForm.budgetMax}
                   onChange={(e) => {
-                    setSearchForm(prev => ({ ...prev, budgetMax: e.target.value }));
-                    setErrors(prev => ({ ...prev, budgetMax: null }));
+                    setSearchForm((prev) => ({
+                      ...prev,
+                      budgetMax: e.target.value,
+                    }));
+                    setErrors((prev) => ({ ...prev, budgetMax: null }));
                   }}
-                  onBlur={handleBlur('search')}
+                  onBlur={handleBlur("search")}
                 />
-                {errors.budgetMax && <div className="error-message">{errors.budgetMax}</div>}
+                {errors.budgetMax && (
+                  <div className="error-message">{errors.budgetMax}</div>
+                )}
               </div>
             </div>
           </div>
-
           <div className="form-group">
             <label className="form-label">Дополнительные пожелания</label>
             <textarea
               className="form-textarea"
               placeholder="Опишите дополнительные пожелания..."
               value={searchForm.requirements}
-              onChange={(e) => setSearchForm(prev => ({ ...prev, requirements: e.target.value }))}
+              onChange={(e) =>
+                setSearchForm((prev) => ({
+                  ...prev,
+                  requirements: e.target.value,
+                }))
+              }
             />
           </div>
-
           <div className="form-group">
-            <label className="form-label">Ваше имя <span className="required">*</span></label>
+            <label className="form-label">
+              Ваше имя <span className="required">*</span>
+            </label>
             <input
               type="text"
               className="form-input"
               name="name"
               value={searchForm.name}
               onChange={(e) => {
-                setSearchForm(prev => ({ ...prev, name: e.target.value }));
-                setErrors(prev => ({ ...prev, name: null }));
+                setSearchForm((prev) => ({ ...prev, name: e.target.value }));
+                setErrors((prev) => ({ ...prev, name: null }));
               }}
-              onBlur={handleBlur('search')}
+              onBlur={handleBlur("search")}
             />
             {errors.name && <div className="error-message">{errors.name}</div>}
           </div>
-
           <div className="form-group">
-            <label className="form-label">Номер телефона <span className="required">*</span></label>
+            <label className="form-label">
+              Номер телефона <span className="required">*</span>
+            </label>
             <input
               type="tel"
               className="form-input"
@@ -1209,21 +1162,22 @@ const DonEstateApp = () => {
               placeholder="+7 (XXX) XXX-XX-XX"
               value={searchForm.phone}
               onChange={(e) => {
-                setSearchForm(prev => ({ ...prev, phone: e.target.value }));
-                setErrors(prev => ({ ...prev, phone: null }));
+                setSearchForm((prev) => ({ ...prev, phone: e.target.value }));
+                setErrors((prev) => ({ ...prev, phone: null }));
               }}
-              onBlur={handleBlur('search')}
+              onBlur={handleBlur("search")}
             />
-            {errors.phone && <div className="error-message">{errors.phone}</div>}
+            {errors.phone && (
+              <div className="error-message">{errors.phone}</div>
+            )}
           </div>
-
           <button
             type="submit"
             className="btn btn-primary"
             disabled={isSubmitting}
           >
             {isSubmitting && <div className="loading-spinner"></div>}
-            {isSubmitting ? 'Отправка...' : 'Отправить заявку'}
+            {isSubmitting ? "Отправка..." : "Отправить заявку"}
           </button>
         </form>
       </div>
@@ -1235,31 +1189,34 @@ const DonEstateApp = () => {
       <div className="container">
         <button
           className="btn btn-back"
-          onClick={() => setCurrentScreen('main')}
+          onClick={() => setCurrentScreen("main")}
         >
           ◀ Назад
         </button>
-
         <div className="header">
           <h1>Предложить объект</h1>
         </div>
-
         <form className="form" onSubmit={handleOfferSubmit}>
           <ProgressBar progress={offerProgress} />
           <div className="form-group">
-            <label className="form-label">Тип сделки <span className="required">*</span></label>
+            <label className="form-label">
+              Тип сделки <span className="required">*</span>
+            </label>
             <div className="radio-group">
               <label className="radio-option">
                 <input
                   type="radio"
                   name="transactionType"
                   value="Продать"
-                  checked={offerForm.transactionType === 'Продать'}
+                  checked={offerForm.transactionType === "Продать"}
                   onChange={(e) => {
-                    setOfferForm(prev => ({ ...prev, transactionType: e.target.value }));
-                    setErrors(prev => ({ ...prev, transactionType: null }));
+                    setOfferForm((prev) => ({
+                      ...prev,
+                      transactionType: e.target.value,
+                    }));
+                    setErrors((prev) => ({ ...prev, transactionType: null }));
                   }}
-                  onBlur={handleBlur('offer')}
+                  onBlur={handleBlur("offer")}
                 />
                 Продать
               </label>
@@ -1268,41 +1225,55 @@ const DonEstateApp = () => {
                   type="radio"
                   name="transactionType"
                   value="Сдать"
-                  checked={offerForm.transactionType === 'Сдать'}
+                  checked={offerForm.transactionType === "Сдать"}
                   onChange={(e) => {
-                    setOfferForm(prev => ({ ...prev, transactionType: e.target.value }));
-                    setErrors(prev => ({ ...prev, transactionType: null }));
+                    setOfferForm((prev) => ({
+                      ...prev,
+                      transactionType: e.target.value,
+                    }));
+                    setErrors((prev) => ({ ...prev, transactionType: null }));
                   }}
-                  onBlur={handleBlur('offer')}
+                  onBlur={handleBlur("offer")}
                 />
                 Сдать
               </label>
             </div>
-            {errors.transactionType && <div className="error-message">{errors.transactionType}</div>}
+            {errors.transactionType && (
+              <div className="error-message">{errors.transactionType}</div>
+            )}
           </div>
-
           <div className="form-group">
-            <label className="form-label">Тип недвижимости <span className="required">*</span></label>
+            <label className="form-label">
+              Тип недвижимости <span className="required">*</span>
+            </label>
             <select
               className="form-select"
               name="propertyType"
               value={offerForm.propertyType}
               onChange={(e) => {
-                setOfferForm(prev => ({ ...prev, propertyType: e.target.value }));
-                setErrors(prev => ({ ...prev, propertyType: null }));
+                setOfferForm((prev) => ({
+                  ...prev,
+                  propertyType: e.target.value,
+                }));
+                setErrors((prev) => ({ ...prev, propertyType: null }));
               }}
-              onBlur={handleBlur('offer')}
+              onBlur={handleBlur("offer")}
             >
               <option value="">Выберите тип</option>
-              {['Квартира', 'Дом', 'Коммерческая недвижимость'].map(type => (
-                <option key={type} value={type}>{type}</option>
+              {["Квартира", "Дом", "Коммерческая недвижимость"].map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
               ))}
             </select>
-            {errors.propertyType && <div className="error-message">{errors.propertyType}</div>}
+            {errors.propertyType && (
+              <div className="error-message">{errors.propertyType}</div>
+            )}
           </div>
-
           <div className="form-group">
-            <label className="form-label">Адрес <span className="required">*</span></label>
+            <label className="form-label">
+              Адрес <span className="required">*</span>
+            </label>
             <input
               type="text"
               className="form-input"
@@ -1310,14 +1281,15 @@ const DonEstateApp = () => {
               placeholder="Улица, дом, квартира"
               value={offerForm.address}
               onChange={(e) => {
-                setOfferForm(prev => ({ ...prev, address: e.target.value }));
-                setErrors(prev => ({ ...prev, address: null }));
+                setOfferForm((prev) => ({ ...prev, address: e.target.value }));
+                setErrors((prev) => ({ ...prev, address: null }));
               }}
-              onBlur={handleBlur('offer')}
+              onBlur={handleBlur("offer")}
             />
-            {errors.address && <div className="error-message">{errors.address}</div>}
+            {errors.address && (
+              <div className="error-message">{errors.address}</div>
+            )}
           </div>
-
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Площадь</label>
@@ -1326,7 +1298,9 @@ const DonEstateApp = () => {
                 className="form-input"
                 placeholder="м²"
                 value={offerForm.area}
-                onChange={(e) => setOfferForm(prev => ({ ...prev, area: e.target.value }))}
+                onChange={(e) =>
+                  setOfferForm((prev) => ({ ...prev, area: e.target.value }))
+                }
               />
             </div>
             <div className="form-group">
@@ -1336,11 +1310,12 @@ const DonEstateApp = () => {
                 className="form-input"
                 placeholder="Например: 5/9"
                 value={offerForm.floors}
-                onChange={(e) => setOfferForm(prev => ({ ...prev, floors: e.target.value }))}
+                onChange={(e) =>
+                  setOfferForm((prev) => ({ ...prev, floors: e.target.value }))
+                }
               />
             </div>
           </div>
-
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Количество комнат</label>
@@ -1348,7 +1323,9 @@ const DonEstateApp = () => {
                 type="number"
                 className="form-input"
                 value={offerForm.rooms}
-                onChange={(e) => setOfferForm(prev => ({ ...prev, rooms: e.target.value }))}
+                onChange={(e) =>
+                  setOfferForm((prev) => ({ ...prev, rooms: e.target.value }))
+                }
               />
             </div>
             <div className="form-group">
@@ -1358,38 +1335,45 @@ const DonEstateApp = () => {
                 className="form-input"
                 placeholder="$"
                 value={offerForm.price}
-                onChange={(e) => setOfferForm(prev => ({ ...prev, price: e.target.value }))}
+                onChange={(e) =>
+                  setOfferForm((prev) => ({ ...prev, price: e.target.value }))
+                }
               />
             </div>
           </div>
-
           <div className="form-group">
             <label className="form-label">Описание</label>
             <textarea
               className="form-textarea"
               placeholder="Подробное описание объекта..."
               value={offerForm.description}
-              onChange={(e) => setOfferForm(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) =>
+                setOfferForm((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
             />
           </div>
-
           <div className="form-group">
             <label className="form-label">Фотографии</label>
             <div
               className="upload-zone"
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, 'photos')}
+              onDrop={(e) => handleDrop(e, "photos")}
               onClick={() => fileInputRef.current?.click()}
             >
-              <div className="upload-text">Перетащите фото сюда или нажмите для выбора</div>
+              <div className="upload-text">
+                Перетащите фото сюда или нажмите для выбора
+              </div>
               <div className="upload-hint">Максимум 10 фотографий</div>
               <input
                 ref={fileInputRef}
                 type="file"
                 multiple
                 accept=".jpg,.jpeg,.png,.webp"
-                onChange={(e) => handleFileUpload(e.target.files, 'photos')}
+                onChange={(e) => handleFileUpload(e.target.files, "photos")}
               />
             </div>
             {offerForm.photos.length > 0 && (
@@ -1409,30 +1393,33 @@ const DonEstateApp = () => {
               </div>
             )}
           </div>
-
           <div className="form-group">
             <label className="form-label">Видео</label>
             <div
               className="upload-zone"
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, 'video')}
+              onDrop={(e) => handleDrop(e, "video")}
               onClick={() => videoInputRef.current?.click()}
             >
-              <div className="upload-text">Перетащите видео сюда или нажмите для выбора</div>
+              <div className="upload-text">
+                Перетащите видео сюда или нажмите для выбора
+              </div>
               <div className="upload-hint">Максимум 1 видео (до 50 МБ)</div>
               <input
                 ref={videoInputRef}
                 type="file"
                 accept=".mp4,.mov"
-                onChange={(e) => handleFileUpload(e.target.files, 'video')}
+                onChange={(e) => handleFileUpload(e.target.files, "video")}
               />
             </div>
             {offerForm.video && (
               <div className="video-preview">
                 <div className="video-info">
                   <div className="video-name">🎥 {offerForm.video.name}</div>
-                  <div className="video-size">{formatFileSize(offerForm.video.size)}</div>
+                  <div className="video-size">
+                    {formatFileSize(offerForm.video.size)}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1444,25 +1431,27 @@ const DonEstateApp = () => {
               </div>
             )}
           </div>
-
           <div className="form-group">
-            <label className="form-label">Ваше имя <span className="required">*</span></label>
+            <label className="form-label">
+              Ваше имя <span className="required">*</span>
+            </label>
             <input
               type="text"
               className="form-input"
               name="name"
               value={offerForm.name}
               onChange={(e) => {
-                setOfferForm(prev => ({ ...prev, name: e.target.value }));
-                setErrors(prev => ({ ...prev, name: null }));
+                setOfferForm((prev) => ({ ...prev, name: e.target.value }));
+                setErrors((prev) => ({ ...prev, name: null }));
               }}
-              onBlur={handleBlur('offer')}
+              onBlur={handleBlur("offer")}
             />
             {errors.name && <div className="error-message">{errors.name}</div>}
           </div>
-
           <div className="form-group">
-            <label className="form-label">Номер телефона <span className="required">*</span></label>
+            <label className="form-label">
+              Номер телефона <span className="required">*</span>
+            </label>
             <input
               type="tel"
               className="form-input"
@@ -1470,21 +1459,22 @@ const DonEstateApp = () => {
               placeholder="+7 (XXX) XXX-XX-XX"
               value={offerForm.phone}
               onChange={(e) => {
-                setOfferForm(prev => ({ ...prev, phone: e.target.value }));
-                setErrors(prev => ({ ...prev, phone: null }));
+                setOfferForm((prev) => ({ ...prev, phone: e.target.value }));
+                setErrors((prev) => ({ ...prev, phone: null }));
               }}
-              onBlur={handleBlur('offer')}
+              onBlur={handleBlur("offer")}
             />
-            {errors.phone && <div className="error-message">{errors.phone}</div>}
+            {errors.phone && (
+              <div className="error-message">{errors.phone}</div>
+            )}
           </div>
-
           <button
             type="submit"
             className="btn btn-primary"
             disabled={isSubmitting}
           >
             {isSubmitting && <div className="loading-spinner"></div>}
-            {isSubmitting ? 'Отправка...' : 'Отправить заявку'}
+            {isSubmitting ? "Отправка..." : "Отправить заявку"}
           </button>
         </form>
       </div>
@@ -1492,151 +1482,67 @@ const DonEstateApp = () => {
   );
 
   useEffect(() => {
-    if (currentScreen === 'favorites') {
+    if (currentScreen === "favorites") {
       fetchFavorites();
     }
   }, [currentScreen]);
 
-  const ModerationCard = ({ property, onApprove, onReject }) => (
-    <div className="property-card">
-      <div className="property-card__image-container">
-        {property.photos && property.photos.length > 0 ? (
-          <img src={property.photos[0]} alt={property.title} className="property-card__image" />
-        ) : (
-          <div className="property-card__no-image">Нет фото</div>
-        )}
-      </div>
-      <div className="property-card__content">
-        <h3 className="property-card__title">{property.address || 'Адрес не указан'}</h3>
-        <p className="property-card__price">{property.price_usd ? `$${property.price_usd.toLocaleString()}` : 'Цена не указана'}</p>
-        <p className="property-card__description">{property.description || 'Нет описания'}</p>
-        <div className="moderation-actions">
-            <button className="btn btn-primary" onClick={() => onApprove(property.id)}>Одобрить</button>
-            <button className="btn btn-secondary" onClick={() => onReject(property.id)}>Отклонить</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const ModerationScreen = () => {
-    const [queue, setQueue] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const fetchQueue = async () => {
-      setIsLoading(true);
-      try {
-        const tg = window.Telegram.WebApp;
-        const response = await fetch('/api/admin/moderation-queue', {
-          headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
-        });
-        if (!response.ok) throw new Error('Failed to fetch moderation queue');
-        const data = await response.json();
-        setQueue(data);
-      } catch (error) {
-        console.error(error);
-        showToast('Не удалось загрузить список объектов на модерацию.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    useEffect(() => {
-      fetchQueue();
-    }, []);
-
-    const handleApprove = async (propertyId) => {
-        // Optimistic update
-        setQueue(prev => prev.filter(p => p.id !== propertyId));
-        try {
-            const tg = window.Telegram.WebApp;
-            await fetch(`/api/admin/properties/${propertyId}/approve`, {
-                method: 'POST',
-                headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
-            });
-        } catch (error) {
-            showToast('Не удалось одобрить объект. Обновите список.');
-            fetchQueue(); // Re-fetch to get the correct state
-        }
-    };
-
-    const handleReject = async (propertyId) => {
-        // Optimistic update
-        setQueue(prev => prev.filter(p => p.id !== propertyId));
-        try {
-            const tg = window.Telegram.WebApp;
-            await fetch(`/api/admin/properties/${propertyId}`, {
-                method: 'DELETE',
-                headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
-            });
-        } catch (error) {
-            showToast('Не удалось отклонить объект. Обновите список.');
-            fetchQueue(); // Re-fetch to get the correct state
-        }
-    };
-
-    return (
-        <div className="screen">
-          <div className="container">
-            <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀ Назад</button>
-            <div className="header"><h1>Модерация</h1></div>
-            <div className="results-list">
-              {isLoading ? (
-                [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
-              ) : queue.length > 0 ? (
-                queue.map(prop =>
-                  <ModerationCard
-                    key={prop.id}
-                    property={prop}
-                    onApprove={handleApprove}
-                    onReject={handleReject}
-                  />)
-              ) : (
-                <EmptyState
-                  icon="✅"
-                  title="Все чисто!"
-                  message="Нет новых объектов для модерации."
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      );
-  }
-
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'search': return <SearchScreen />;
-      case 'offer': return <OfferScreen />;
-      case 'moderation': return <ModerationScreen />;
-      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
-      case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
-      case 'map': return <MapScreen />;
-      case 'chat': return <ChatScreen />;
-      default: return <MainScreen />;
+      case "search":
+        return <SearchScreen />;
+      case "offer":
+        return <OfferScreen />;
+      case "results":
+        return (
+          <ResultsScreen
+            results={searchResults}
+            onToggleFavorite={handleToggleFavorite}
+            searchCriteria={searchForm}
+            isLoading={isLoading}
+          />
+        );
+      case "favorites":
+        return (
+          <FavoritesScreen
+            favorites={favorites}
+            onToggleFavorite={handleToggleFavorite}
+            isLoading={isLoading}
+          />
+        );
+      case "map":
+        return <MapScreen />;
+      case "chat":
+        return <ChatScreen />;
+      default:
+        return <MainScreen />;
     }
   };
 
   return (
     <>
       {renderScreen()}
-      {modal && modal.type === 'success' && (
+      {modal && (
         <div className="modal">
           <div className="modal-content">
-            <div className="modal-text success-text">
+            <div
+              className={`modal-text ${modal.type === "success" ? "success-text" : "error-text"}`}
+            >
               {modal.message}
             </div>
+            {modal.type === "error" && (
+              <button
+                className="btn btn-primary"
+                onClick={() => setModal(null)}
+              >
+                OK
+              </button>
+            )}
           </div>
         </div>
       )}
-      <div className="toast-container">
-        {toasts.map(toast => (
-          <div key={toast.id} className="toast">
-            {toast.message}
-          </div>
-        ))}
-      </div>
     </>
   );
 };
 
-ReactDOM.render(<DonEstateApp />, document.getElementById('root'));
+ReactDOM.render(<DonEstateApp />, document.getElementById("root"));
