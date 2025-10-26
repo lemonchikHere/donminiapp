@@ -44,7 +44,9 @@ class SearchResponse(BaseModel):
 async def search_properties(
     search_request: PropertySearchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    limit: int = 20,
+    offset: int = 0
 ):
     """
     Performs semantic search for properties using vector similarity and applies filters.
@@ -80,20 +82,23 @@ async def search_properties(
         query = query.filter(Property.transaction_type == search_request.transaction_type)
     if search_request.property_types:
         query = query.filter(Property.property_type.in_(search_request.property_types))
-    if search_request.rooms:
+    if search_request.rooms is not None:
         query = query.filter(Property.rooms == search_request.rooms)
     if search_request.budget_min:
         query = query.filter(Property.price_usd >= search_request.budget_min)
     if search_request.budget_max:
         query = query.filter(Property.price_usd <= search_request.budget_max)
 
-    # 4. Order by similarity and limit results
-    if query_embedding:
-        results = query.order_by('distance').limit(20).all()
-    else:
-        results = query.order_by(Property.posted_at.desc()).limit(20).all()
+    # 4. Get total count for pagination
+    total_count = query.count()
 
-    # 5. Format response
+    # 5. Order by similarity, apply pagination and get results
+    if query_embedding:
+        results = query.order_by('distance').offset(offset).limit(limit).all()
+    else:
+        results = query.order_by(Property.posted_at.desc()).offset(offset).limit(limit).all()
+
+    # 6. Format response
     properties_response = []
     user_favorites = {fav.property_id for fav in db.query(Favorite.property_id).filter(Favorite.user_id == current_user.id).all()}
 
@@ -117,5 +122,5 @@ async def search_properties(
 
     return SearchResponse(
         results=properties_response,
-        total=len(properties_response)
+        total=total_count
     )

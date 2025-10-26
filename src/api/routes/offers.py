@@ -9,11 +9,9 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
 
 from src.database import get_db
 from src.services.offer_service import OfferService
-from src.services.notification_service import NotificationService
 from src.config import settings
 from aiogram import Bot
 
