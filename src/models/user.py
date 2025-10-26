@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID, BIGINT
 import uuid
 from datetime import datetime
-from .base import Base
+from src.database import Base
 
 class User(Base):
     __tablename__ = 'users'
@@ -17,7 +17,7 @@ class Favorite(Base):
     __tablename__ = 'favorites'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
-    property_id = Column(UUID(as_uuid=True), ForeignKey('properties.id'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete="CASCADE"), nullable=False)
+    property_id = Column(UUID(as_uuid=True), ForeignKey('properties.id', ondelete="CASCADE"), nullable=False)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)

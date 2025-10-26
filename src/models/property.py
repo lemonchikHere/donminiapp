@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID, BIGINT
 from pgvector.sqlalchemy import Vector
 import uuid
 from datetime import datetime
-from .base import Base
+from src.database import Base
 
 class Property(Base):
     __tablename__ = 'properties'

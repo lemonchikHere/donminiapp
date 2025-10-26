@@ -883,6 +883,7 @@ const DonEstateApp = () => {
 
     return (
       <div className="screen map-screen">
+        {isLoading && <div className="map-loader">Загрузка карты...</div>}
         <div id="map" ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
         <button
           className="btn btn-back map-back-btn"
