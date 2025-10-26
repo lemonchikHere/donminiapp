@@ -62,39 +62,56 @@ def db_session():
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
 
-    # Override the app's dependency to use this session
+    # Override the app's dependencies to use this session
     def override_get_db():
         yield session
 
+    def override_get_current_user():
+        user = session.query(User).filter(User.telegram_user_id == 123456789).first()
+        if not user:
+            user = User(telegram_user_id=123456789, username="testuser")
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+        return user
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
 
     yield session
 
-    # Teardown
     session.close()
     transaction.rollback()
     connection.close()
-    # Restore original dependency
-    app.dependency_overrides.pop(get_db, None)
+    TestBase.metadata.drop_all(bind=engine)
+    AppBase.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture(scope="module")
 def client():
-    # This client doesn't need the user_id header anymore,
-    # as the user will be created per-test by the test_user fixture
     with TestClient(app) as c:
         yield c
 
+@pytest.fixture(autouse=True)
+def mock_openai_to_none():
+    """
+    By default, mock the embedding creation to return None.
+    This prevents vector search logic from being triggered in most tests,
+    avoiding the pgvector <=> operator error with SQLite.
+    """
+    with patch("src.api.routes.search.openai.embeddings.create") as mock_create:
+        mock_create.return_value = None
+        yield mock_create
+
 @pytest.fixture(scope="function")
-def test_user(db_session):
-    # This fixture now uses the same transactional session as the app
-    user = User(telegram_user_id=123, username="testuser")
-    db_session.add(user)
-    db_session.commit()
-
-    # We need to update the client header inside this fixture to match the created user
-    # Or, even better, let's create a new client for each function
-    client = TestClient(app)
-    client.headers["X-Telegram-User-Id"] = str(user.telegram_user_id)
-
-    return user, client
+def mock_openai_for_semantic_search():
+    """
+    A specific mock for the semantic search test that returns a valid embedding.
+    """
+    with patch("src.api.routes.search.openai.embeddings.create") as mock_create:
+        # Create a mock Embedding object
+        mock_embedding = type("Embedding", (), {"embedding": [0.1] * 1536})
+        # Create a mock Response object containing the embedding data
+        mock_response = type("Response", (), {"data": [mock_embedding]})
+        mock_create.return_value = mock_response
+        yield mock_create
