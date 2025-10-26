@@ -355,17 +355,6 @@ body {
   margin-right: 8px;
 }
 
-.loading-spinner.small {
-  width: 14px;
-  height: 14px;
-  margin-right: 0;
-}
-
-.property-card__favorite-btn.loading {
-  pointer-events: none;
-  background-color: rgba(0,0,0,0.7);
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -569,18 +558,6 @@ body {
   z-index: 101;
 }
 
-.map-loader {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 10px 20px;
-  border-radius: 8px;
-  z-index: 102;
-}
-
 .chat-screen {
   display: flex;
   flex-direction: column;
@@ -741,6 +718,16 @@ body {
 
 .empty-state__message {
   color: var(--tg-secondary-text);
+}
+
+.moderation-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.moderation-actions .btn {
+  flex: 1;
 }
 
 /* Upload Progress Bar */

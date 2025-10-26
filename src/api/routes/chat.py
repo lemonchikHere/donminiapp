@@ -4,12 +4,11 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from src.services.ai_assistant_service import get_ai_assistant_service, AIAssistantService
-from src.api.schemas import SanitizedString
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
 class ChatRequest(BaseModel):
-    message: SanitizedString
+    message: str
 
 class PropertyInChat(BaseModel):
     id: UUID

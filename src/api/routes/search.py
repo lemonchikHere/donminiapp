@@ -9,20 +9,19 @@ from src.models.property import Property
 from src.models.user import Favorite, User
 from src.api.dependencies import get_current_user
 from src.config import settings
-from src.api.schemas import SanitizedString
 
 openai.api_key = settings.OPENAI_API_KEY
 
 router = APIRouter(prefix="/api", tags=["Search"])
 
 class PropertySearchRequest(BaseModel):
-    transaction_type: Optional[SanitizedString] = None
-    property_types: Optional[List[SanitizedString]] = None
+    transaction_type: Optional[str] = None
+    property_types: Optional[List[str]] = None
     rooms: Optional[int] = None
-    district: Optional[SanitizedString] = None
+    district: Optional[str] = None
     budget_min: Optional[float] = None
     budget_max: Optional[float] = None
-    query_text: Optional[SanitizedString] = ""
+    query_text: Optional[str] = ""
 
 class PropertyResponse(BaseModel):
     id: str
@@ -45,9 +44,7 @@ class SearchResponse(BaseModel):
 async def search_properties(
     search_request: PropertySearchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    limit: int = 20,
-    offset: int = 0
+    current_user: User = Depends(get_current_user)
 ):
     """
     Performs semantic search for properties using vector similarity and applies filters.
@@ -90,16 +87,13 @@ async def search_properties(
     if search_request.budget_max:
         query = query.filter(Property.price_usd <= search_request.budget_max)
 
-    # 4. Get total count for pagination
-    total_count = query.count()
-
-    # 5. Order by similarity, apply pagination and get results
+    # 4. Order by similarity and limit results
     if query_embedding:
-        results = query.order_by('distance').offset(offset).limit(limit).all()
+        results = query.order_by('distance').limit(20).all()
     else:
-        results = query.order_by(Property.posted_at.desc()).offset(offset).limit(limit).all()
+        results = query.order_by(Property.posted_at.desc()).limit(20).all()
 
-    # 6. Format response
+    # 5. Format response
     properties_response = []
     user_favorites = {fav.property_id for fav in db.query(Favorite.property_id).filter(Favorite.user_id == current_user.id).all()}
 
@@ -123,5 +117,5 @@ async def search_properties(
 
     return SearchResponse(
         results=properties_response,
-        total=total_count
+        total=len(properties_response)
     )

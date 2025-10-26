@@ -15,27 +15,25 @@ from src.database import get_db
 from src.services.offer_service import OfferService
 from src.services.notification_service import NotificationService
 from src.config import settings
-from src.api.schemas import SanitizedString
 from aiogram import Bot
 
 router = APIRouter(prefix="/api/offers", tags=["Offers"])
 
-class OfferCreate(BaseModel):
-    transactionType: SanitizedString
-    propertyType: SanitizedString
-    address: SanitizedString
-    area: Optional[SanitizedString] = None
-    floors: Optional[SanitizedString] = None
-    rooms: Optional[SanitizedString] = None
-    price: Optional[SanitizedString] = None
-    description: Optional[SanitizedString] = None
-    name: SanitizedString
-    phone: SanitizedString
-
-@router.post("/", status_code=status.HTTP_202_ACCEPTED)
-async def create_offer(
-    offer_in: OfferCreate,
-    db: Session = Depends(get_db)
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_offer_with_upload(
+    transactionType: str = Form(...),
+    propertyType: str = Form(...),
+    address: str = Form(...),
+    name: str = Form(...),
+    phone: str = Form(...),
+    area: Optional[str] = Form(None),
+    floors: Optional[str] = Form(None),
+    rooms: Optional[str] = Form(None),
+    price: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    photos: List[UploadFile] = File([]),
+    video: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
 ):
     """
     Accepts a new property offer with file uploads from a user.
