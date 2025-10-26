@@ -12,5 +12,4 @@ httpx
 Pillow
 pytest
 pytest-asyncio
-slowapi
-bleach
+pytest-mock

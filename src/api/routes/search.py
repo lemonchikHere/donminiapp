@@ -9,20 +9,19 @@ from src.models.property import Property
 from src.models.user import Favorite, User
 from src.api.dependencies import get_current_user
 from src.config import settings
-from src.api.schemas import SanitizedString
 
 openai.api_key = settings.OPENAI_API_KEY
 
 router = APIRouter(prefix="/api", tags=["Search"])
 
 class PropertySearchRequest(BaseModel):
-    transaction_type: Optional[SanitizedString] = None
-    property_types: Optional[List[SanitizedString]] = None
+    transaction_type: Optional[str] = None
+    property_types: Optional[List[str]] = None
     rooms: Optional[int] = None
-    district: Optional[SanitizedString] = None
+    district: Optional[str] = None
     budget_min: Optional[float] = None
     budget_max: Optional[float] = None
-    query_text: Optional[SanitizedString] = ""
+    query_text: Optional[str] = ""
 
 class PropertyResponse(BaseModel):
     id: str
@@ -96,7 +95,7 @@ async def search_properties(
 
     # 5. Format response
     properties_response = []
-    user_favorites = {fav.property_id for fav in db.query(Favorite.property_id).filter(Favorite.user_id == current_user.id).all()}
+    user_favorites = set(db.query(Favorite.property_id).filter(Favorite.user_id == current_user.id).scalars().all())
 
     for item in results:
         prop = item[0] if isinstance(item, tuple) else item
