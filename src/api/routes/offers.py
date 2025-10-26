@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
+from pydantic import BaseModel
 
 from src.database import get_db
 from src.services.notification_service import NotificationService # We can reuse this
