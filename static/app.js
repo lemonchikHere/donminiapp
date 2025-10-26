@@ -3,6 +3,8 @@ const { useState, useCallback, useRef, useEffect } = React;
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [modal, setModal] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Search form state
   const [searchForm, setSearchForm] = useState({
@@ -35,6 +37,7 @@ const DonEstateApp = () => {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [mapProperties, setMapProperties] = useState([]);
@@ -42,6 +45,7 @@ const DonEstateApp = () => {
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(null);
 
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
@@ -49,6 +53,36 @@ const DonEstateApp = () => {
       <div className="progress-text">{Math.round(progress)}%</div>
     </div>
   );
+
+  useEffect(() => {
+    // Dynamically load Yandex Maps API and fetch config
+    const fetchConfigAndLoadMap = async () => {
+      try {
+        const tg = window.Telegram.WebApp;
+        const response = await fetch('/api/config/', {
+          headers: {
+            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+          }
+        });
+        const config = await response.json();
+
+        // Set admin status
+        if (config.is_admin) {
+          setIsAdmin(true);
+        }
+
+        // Load Yandex Map
+        const script = document.createElement('script');
+        script.src = `https://api-maps.yandex.ru/2.1/?apikey=${config.yandex_maps_api_key}&lang=ru_RU`;
+        script.async = true;
+        document.head.appendChild(script);
+      } catch (error) {
+        console.error("Failed to load map config:", error);
+      }
+    };
+
+    fetchConfigAndLoadMap();
+  }, []);
 
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
@@ -293,6 +327,7 @@ const DonEstateApp = () => {
 
     setErrors({});
     setIsSubmitting(true);
+    setIsLoading(true); // Start loading
 
     try {
       const tg = window.Telegram.WebApp;
@@ -329,6 +364,7 @@ const DonEstateApp = () => {
       });
     } finally {
       setIsSubmitting(false);
+      setIsLoading(false); // End loading
     }
   };
 
@@ -344,14 +380,18 @@ const DonEstateApp = () => {
     setErrors({});
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Offer Form Data:', {
-        ...offerForm,
-        photos: offerForm.photos.map(f => ({ name: f.name, size: f.size, type: f.type })),
-        video: offerForm.video ? { name: offerForm.video.name, size: offerForm.video.size, type: offerForm.video.type } : null
+    try {
+      // We are not handling file uploads in this step to keep it simple
+      const { photos, video, ...formData } = offerForm;
+
+      const response = await fetch('/api/offers/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-      setIsSubmitting(false);
+
+      if (!response.ok) throw new Error('Failed to submit offer');
+
       setModal({
         type: 'success',
         message: '✅ Заявка успешно отправлена! Мы свяжемся с вами в ближайшее время.'
@@ -360,27 +400,25 @@ const DonEstateApp = () => {
       // Reset form and navigate back
       setTimeout(() => {
         setOfferForm({
-          transactionType: '',
-          propertyType: '',
-          address: '',
-          area: '',
-          floors: '',
-          rooms: '',
-          price: '',
-          description: '',
-          name: '',
-          phone: '',
-          photos: [],
-          video: null
+          transactionType: '', propertyType: '', address: '', area: '',
+          floors: '', rooms: '', price: '', description: '',
+          name: '', phone: '', photos: [], video: null
         });
         localStorage.removeItem('don_estate_offer_form');
         setModal(null);
         setCurrentScreen('main');
       }, 2000);
-    }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      setModal({ type: 'error', message: 'Не удалось отправить заявку.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const fetchFavorites = async () => {
+    setIsLoading(true);
     try {
       const tg = window.Telegram.WebApp;
       const response = await fetch('/api/favorites/', {
@@ -393,7 +431,9 @@ const DonEstateApp = () => {
       setFavorites(data);
     } catch (error) {
       console.error(error);
-      setModal({ type: 'error', message: 'Не удалось загрузить избранное.' });
+      showToast('Не удалось загрузить избранное.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -435,10 +475,7 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
-      setModal({
-        type: 'error',
-        message: 'Не удалось обновить избранное.'
-      });
+      showToast('Не удалось обновить избранное.');
     }
   };
 
@@ -455,7 +492,7 @@ const DonEstateApp = () => {
     <div className="screen">
       <div className="container">
         <div className="header">
-          <h1>Don Estate</h1>
+          <img src="/static/assets/logo.jpg" alt="Don Estate" className="logo" />
           <p>Агентство недвижимости в Донецке</p>
         </div>
 
@@ -484,8 +521,41 @@ const DonEstateApp = () => {
           >
             🗺️ Карта
           </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setCurrentScreen('chat')}
+          >
+            💬 Чат с ассистентом
+          </button>
+          {isAdmin && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentScreen('moderation')}
+            >
+              🔧 Модерация
+            </button>
+          )}
         </div>
       </div>
+    </div>
+  );
+
+  const SkeletonCard = () => (
+    <div className="property-card skeleton">
+      <div className="property-card__image-container skeleton-anim"></div>
+      <div className="property-card__content">
+        <div className="skeleton-text skeleton-anim"></div>
+        <div className="skeleton-text short skeleton-anim"></div>
+        <div className="skeleton-text long skeleton-anim"></div>
+      </div>
+    </div>
+  );
+
+  const EmptyState = ({ icon, title, message }) => (
+    <div className="empty-state">
+      <div className="empty-state__icon">{icon}</div>
+      <h2 className="empty-state__title">{title}</h2>
+      <p className="empty-state__message">{message}</p>
     </div>
   );
 
@@ -513,7 +583,28 @@ const DonEstateApp = () => {
     </div>
   );
 
-  const ResultsScreen = ({ results, onToggleFavorite }) => (
+  const ResultsScreen = ({ results, onToggleFavorite, searchCriteria, isLoading }) => {
+    const handleSaveSearch = async () => {
+      try {
+        const tg = window.Telegram.WebApp;
+        const response = await fetch('/api/searches/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
+          },
+          body: JSON.stringify({ criteria: searchCriteria }),
+        });
+        if (!response.ok) throw new Error('Failed to save search');
+        setModal({ type: 'success', message: '✅ Поиск сохранен! Мы будем уведомлять вас о новых объектах.' });
+        setTimeout(() => setModal(null), 2000);
+      } catch (error) {
+        console.error(error);
+        showToast('Не удалось сохранить поиск.');
+      }
+    };
+
+    return (
     <div className="screen">
       <div className="container">
         <button
@@ -524,9 +615,14 @@ const DonEstateApp = () => {
         </button>
         <div className="header">
           <h1>Результаты поиска</h1>
+          <button className="btn btn-secondary" onClick={handleSaveSearch}>
+            💾 Сохранить поиск
+          </button>
         </div>
         <div className="results-list">
-          {results.length > 0 ? (
+          {isLoading ? (
+            [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
+          ) : results.length > 0 ? (
             results.map(prop =>
               <PropertyCard
                 key={prop.id}
@@ -534,14 +630,18 @@ const DonEstateApp = () => {
                 onToggleFavorite={onToggleFavorite}
               />)
           ) : (
-            <p>Ничего не найдено. Попробуйте изменить критерии поиска.</p>
+            <EmptyState
+              icon="🤷"
+              title="Ничего не найдено"
+              message="Попробуйте изменить критерии поиска или расширить бюджет."
+            />
           )}
         </div>
       </div>
     </div>
   );
 
-  const FavoritesScreen = ({ favorites, onToggleFavorite }) => (
+  const FavoritesScreen = ({ favorites, onToggleFavorite, isLoading }) => (
     <div className="screen">
       <div className="container">
         <button
@@ -554,7 +654,9 @@ const DonEstateApp = () => {
           <h1>Избранное</h1>
         </div>
         <div className="results-list">
-          {favorites.length > 0 ? (
+          {isLoading ? (
+            [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
+          ) : favorites.length > 0 ? (
             favorites.map(prop =>
               <PropertyCard
                 key={prop.id}
@@ -562,7 +664,11 @@ const DonEstateApp = () => {
                 onToggleFavorite={onToggleFavorite}
               />)
           ) : (
-            <p>Вы еще ничего не добавили в избранное.</p>
+            <EmptyState
+              icon="❤️"
+              title="Список избранного пуст"
+              message="Нажимайте на сердечко в карточках объектов, чтобы добавлять их сюда."
+            />
           )}
         </div>
       </div>
@@ -609,6 +715,7 @@ const DonEstateApp = () => {
     }, []);
 
     const fetchMapProperties = async (map) => {
+      setIsMapLoading(true);
       try {
         const response = await fetch('/api/map/properties');
         if (!response.ok) throw new Error('Failed to fetch map properties');
@@ -626,7 +733,9 @@ const DonEstateApp = () => {
 
       } catch (error) {
         console.error(error);
-        setModal({ type: 'error', message: 'Не удалось загрузить объекты на карте.' });
+        showToast('Не удалось загрузить объекты на карте.');
+      } finally {
+        setIsMapLoading(false);
       }
     };
 
@@ -645,6 +754,101 @@ const DonEstateApp = () => {
         >
           📍 Мое местоположение
         </button>
+      </div>
+    );
+  };
+
+  const ChatScreen = () => {
+    const [messages, setMessages] = useState([
+      { sender: 'bot', text: 'Здравствуйте! Чем могу помочь?' }
+    ]);
+    const [inputValue, setInputValue] = useState('');
+    const [isBotTyping, setIsBotTyping] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(scrollToBottom, [messages]);
+
+    const handleSendMessage = async (e) => {
+      e.preventDefault();
+      if (!inputValue.trim()) return;
+
+      const userMessage = { sender: 'user', text: inputValue };
+      setMessages(prev => [...prev, userMessage]);
+      setInputValue('');
+      setIsBotTyping(true);
+
+      try {
+        const response = await fetch('/api/chat/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: inputValue }),
+        });
+
+        if (!response.ok) throw new Error('Failed to get response from bot');
+
+        const botResponse = await response.json();
+
+        let botMessage = { sender: 'bot', text: 'Извините, я не смог обработать ваш запрос.' };
+        if (botResponse.type === 'text') {
+          botMessage.text = botResponse.content;
+        } else if (botResponse.type === 'property_list') {
+          botMessage.text = botResponse.summary;
+          botMessage.properties = botResponse.properties;
+        }
+
+        setMessages(prev => [...prev, botMessage]);
+
+      } catch (error) {
+        console.error(error);
+        showToast('Произошла ошибка. Попробуйте еще раз.');
+      } finally {
+        setIsBotTyping(false);
+      }
+    };
+
+    return (
+      <div className="screen chat-screen">
+        <div className="chat-header">
+          <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀</button>
+          <h1>AI Ассистент</h1>
+        </div>
+        <div className="chat-messages">
+          {messages.map((msg, index) => (
+            <div key={index} className={`chat-bubble ${msg.sender}`}>
+              <p>{msg.text}</p>
+              {msg.properties && (
+                <div className="chat-property-cards">
+                  {msg.properties.map(prop => (
+                    <div key={prop.id} className="chat-property-card">
+                      {prop.photo_url && <img src={prop.photo_url} />}
+                      <div className="chat-property-card-info">
+                        <b>{prop.title}</b>
+                        <p>{prop.address}</p>
+                        <p>${prop.price_usd?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {isBotTyping && <div className="chat-bubble bot typing">...</div>}
+          <div ref={messagesEndRef} />
+        </div>
+        <form className="chat-input-form" onSubmit={handleSendMessage}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Спросите что-нибудь..."
+            disabled={isBotTyping}
+          />
+          <button type="submit" disabled={isBotTyping}>➤</button>
+        </form>
       </div>
     );
   };
@@ -1100,13 +1304,121 @@ const DonEstateApp = () => {
     }
   }, [currentScreen]);
 
+  const ModerationCard = ({ property, onApprove, onReject }) => (
+    <div className="property-card">
+      <div className="property-card__image-container">
+        {property.photos && property.photos.length > 0 ? (
+          <img src={property.photos[0]} alt={property.title} className="property-card__image" />
+        ) : (
+          <div className="property-card__no-image">Нет фото</div>
+        )}
+      </div>
+      <div className="property-card__content">
+        <h3 className="property-card__title">{property.address || 'Адрес не указан'}</h3>
+        <p className="property-card__price">{property.price_usd ? `$${property.price_usd.toLocaleString()}` : 'Цена не указана'}</p>
+        <p className="property-card__description">{property.description || 'Нет описания'}</p>
+        <div className="moderation-actions">
+            <button className="btn btn-primary" onClick={() => onApprove(property.id)}>Одобрить</button>
+            <button className="btn btn-secondary" onClick={() => onReject(property.id)}>Отклонить</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ModerationScreen = () => {
+    const [queue, setQueue] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchQueue = async () => {
+      setIsLoading(true);
+      try {
+        const tg = window.Telegram.WebApp;
+        const response = await fetch('/api/admin/moderation-queue', {
+          headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
+        });
+        if (!response.ok) throw new Error('Failed to fetch moderation queue');
+        const data = await response.json();
+        setQueue(data);
+      } catch (error) {
+        console.error(error);
+        showToast('Не удалось загрузить список объектов на модерацию.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      fetchQueue();
+    }, []);
+
+    const handleApprove = async (propertyId) => {
+        // Optimistic update
+        setQueue(prev => prev.filter(p => p.id !== propertyId));
+        try {
+            const tg = window.Telegram.WebApp;
+            await fetch(`/api/admin/properties/${propertyId}/approve`, {
+                method: 'POST',
+                headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
+            });
+        } catch (error) {
+            showToast('Не удалось одобрить объект. Обновите список.');
+            fetchQueue(); // Re-fetch to get the correct state
+        }
+    };
+
+    const handleReject = async (propertyId) => {
+        // Optimistic update
+        setQueue(prev => prev.filter(p => p.id !== propertyId));
+        try {
+            const tg = window.Telegram.WebApp;
+            await fetch(`/api/admin/properties/${propertyId}`, {
+                method: 'DELETE',
+                headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
+            });
+        } catch (error) {
+            showToast('Не удалось отклонить объект. Обновите список.');
+            fetchQueue(); // Re-fetch to get the correct state
+        }
+    };
+
+    return (
+        <div className="screen">
+          <div className="container">
+            <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀ Назад</button>
+            <div className="header"><h1>Модерация</h1></div>
+            <div className="results-list">
+              {isLoading ? (
+                [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
+              ) : queue.length > 0 ? (
+                queue.map(prop =>
+                  <ModerationCard
+                    key={prop.id}
+                    property={prop}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                  />)
+              ) : (
+                <EmptyState
+                  icon="✅"
+                  title="Все чисто!"
+                  message="Нет новых объектов для модерации."
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      );
+  }
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'search': return <SearchScreen />;
       case 'offer': return <OfferScreen />;
-      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} />;
-      case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} />;
+      case 'moderation': return <ModerationScreen />;
+      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
+      case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
+      case 'chat': return <ChatScreen />;
       default: return <MainScreen />;
     }
   };
