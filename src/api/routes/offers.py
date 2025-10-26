@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, status, Form, UploadFile
 from typing import Optional
 from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
+from pydantic import BaseModel
 
 from src.database import get_db
 from src.config import settings
@@ -10,6 +13,8 @@ router = APIRouter(prefix="/api/offers", tags=["Offers"])
 
 @router.post("/", status_code=status.HTTP_202_ACCEPTED)
 async def create_offer(
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_offer_with_upload(
     transactionType: str = Form(...),
     propertyType: str = Form(...),
     address: str = Form(...),
@@ -20,8 +25,9 @@ async def create_offer(
     rooms: Optional[str] = Form(None),
     price: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
-    # Note: UploadFile is imported but not yet handled in this endpoint.
-    db: Session = Depends(get_db)
+    photos: List[UploadFile] = File([]),
+    video: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
 ):
     """
     Accepts a new property offer from a user via a form and notifies the admin.

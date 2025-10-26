@@ -1,33 +1,63 @@
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from unittest.mock import patch
 import os
+import pytest
+from sqlalchemy import create_engine, JSON
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.types import ARRAY, TypeDecorator
+from fastapi.testclient import TestClient
 
-# Set dummy environment variables FIRST
-os.environ["OPENAI_API_KEY"] = "test_api_key"
-os.environ["TELEGRAM_API_ID"] = "12345"
-os.environ["TELEGRAM_API_HASH"] = "test_hash"
+# --- Set dummy env vars BEFORE any other imports ---
+os.environ.update({
+    "YANDEX_API_KEY": "test_yandex_key",
+    "OPENAI_API_KEY": "test_openai_key",
+    "TELEGRAM_BOT_TOKEN": "test_bot_token",
+    "POSTGRES_USER": "testuser",
+    "POSTGRES_PASSWORD": "testpass",
+    "POSTGRES_DB": "testdb",
+    "POSTGRES_HOST": "localhost",
+    "ADMIN_CHAT_ID": "12345"
+})
 
-from src.database import get_db
-from src.api.main import app
+# --- Import all models to register them with Base ---
+from src.models.base import Base
 from src.models.user import User, Favorite
-from src.api.dependencies import get_current_user
-from tests.models import Base as TestBase # Import the test base
+from src.models.property import Property
+from src.models.appointment import Appointment
 
-# Setup the in-memory SQLite database
+# --- Now, import the app and dependencies ---
+from src.api.main import app
+from src.api.dependencies import get_db
+
+# --- Custom compilers for PostgreSQL types on SQLite ---
+from pgvector.sqlalchemy import Vector
+
+@compiles(ARRAY, 'sqlite')
+def compile_array_sqlite(type_, compiler, **kw):
+    return "JSON"
+
+@compiles(Vector, 'sqlite')
+def compile_vector_sqlite(type_, compiler, **kw):
+    # It renders as a JSON field, and we'll insert JSON-nulls for embeddings
+    return "JSON"
+
+# --- Test DB Setup ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_database():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+# --- Dependency Overrides & Fixtures ---
+
+# This single fixture provides a transactional scope around each test.
 @pytest.fixture(scope="function")
 def db_session():
-    TestBase.metadata.create_all(bind=engine)
-    # Also create necessary tables from the original Base
-    from src.models.base import Base as AppBase
-    AppBase.metadata.create_all(bind=engine, tables=[User.__table__, Favorite.__table__])
-
     connection = engine.connect()
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
