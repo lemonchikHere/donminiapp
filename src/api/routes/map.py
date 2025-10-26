@@ -8,6 +8,7 @@ from src.models.property import Property
 
 router = APIRouter(prefix="/api/map", tags=["Map"])
 
+
 class MapProperty(BaseModel):
     id: str
     latitude: float
@@ -15,16 +16,21 @@ class MapProperty(BaseModel):
     price_usd: float
     title: str
 
+
 @router.get("/properties", response_model=List[MapProperty])
 async def get_map_properties(db: Session = Depends(get_db)):
     """
     Retrieves all active properties with coordinates for map display.
     """
-    properties = db.query(Property).filter(
-        Property.is_active == True,
-        Property.latitude != None,
-        Property.longitude != None
-    ).all()
+    properties = (
+        db.query(Property)
+        .filter(
+            Property.is_active.is_(True),
+            Property.latitude.is_not(None),
+            Property.longitude.is_not(None),
+        )
+        .all()
+    )
 
     return [
         MapProperty(
@@ -32,6 +38,7 @@ async def get_map_properties(db: Session = Depends(get_db)):
             latitude=prop.latitude,
             longitude=prop.longitude,
             price_usd=prop.price_usd,
-            title=f"{prop.rooms or ''}-комн {prop.property_type or ''}"
-        ) for prop in properties
+            title=f"{prop.rooms or ''}-комн {prop.property_type or ''}",
+        )
+        for prop in properties
     ]

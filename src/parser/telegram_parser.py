@@ -10,12 +10,13 @@ from src.services.geocoding_service import geocoding_service
 from src.services.notification_service import NotificationService
 from aiogram import Bot
 
+
 class TelegramChannelParser:
     def __init__(self):
         self.client = TelegramClient(
-            'don_estate_session',
+            "don_estate_session",
             settings.TELEGRAM_API_ID,
-            settings.TELEGRAM_API_HASH
+            settings.TELEGRAM_API_HASH,
         )
         self.phone = settings.TELEGRAM_PHONE
         self.channel_username = settings.TELEGRAM_CHANNEL
@@ -27,7 +28,9 @@ class TelegramChannelParser:
         self.last_message_id = self._load_last_message_id()
 
     def _load_last_message_id(self):
-        last_property = self.db_session.query(Property).order_by(Property.posted_at.desc()).first()
+        last_property = (
+            self.db_session.query(Property).order_by(Property.posted_at.desc()).first()
+        )
         return last_property.telegram_message_id if last_property else 0
 
     def _save_last_message_id(self, msg_id):
@@ -39,7 +42,8 @@ class TelegramChannelParser:
         """Initialize client and start listening."""
         print("Starting parser...")
         await self.client.start(phone=self.phone)
-        print(f"Connected to Telegram as {await self.client.get_me()}")
+        me = await self.client.get_me()
+        print(f"Connected to Telegram as {me.first_name}")
 
         self.channel = await self.client.get_entity(self.channel_username)
 
@@ -76,8 +80,8 @@ class TelegramChannelParser:
 
         # 3. Geocode address
         latitude, longitude = None, None
-        if extracted_data.get('address'):
-            coords = await geocoding_service.get_coordinates(extracted_data['address'])
+        if extracted_data.get("address"):
+            coords = await geocoding_service.get_coordinates(extracted_data["address"])
             if coords:
                 latitude, longitude = coords
 
@@ -89,27 +93,29 @@ class TelegramChannelParser:
             telegram_message_id=message.id,
             telegram_channel_id=self.channel.id,
             posted_at=message.date,
-            transaction_type=extracted_data.get('transaction_type'),
-            property_type=extracted_data.get('property_type'),
-            rooms=extracted_data.get('rooms'),
-            area_sqm=extracted_data.get('area_sqm'),
-            floor=extracted_data.get('floor'),
-            price_usd=extracted_data.get('price_usd'),
-            address=extracted_data.get('address'),
+            transaction_type=extracted_data.get("transaction_type"),
+            property_type=extracted_data.get("property_type"),
+            rooms=extracted_data.get("rooms"),
+            area_sqm=extracted_data.get("area_sqm"),
+            floor=extracted_data.get("floor"),
+            price_usd=extracted_data.get("price_usd"),
+            address=extracted_data.get("address"),
             latitude=latitude,
             longitude=longitude,
-            description=extracted_data.get('description'),
-            raw_text=extracted_data.get('raw_text'),
+            description=extracted_data.get("description"),
+            raw_text=extracted_data.get("raw_text"),
             embedding=embedding,
             photos=media_paths,
-            video_url=media_paths[0] if media_paths and media_paths[0].endswith(('.mp4', '.mov')) else None,
+            video_url=media_paths[0]
+            if media_paths and media_paths[0].endswith((".mp4", ".mov"))
+            else None,
             views_count=message.views or 0,
         )
 
         try:
             self.db_session.add(new_property)
             self.db_session.commit()
-            db.refresh(new_property)
+            self.db_session.refresh(new_property)
             print(f"Successfully saved property from message {message.id}")
 
             # After saving, trigger notification service
@@ -121,6 +127,7 @@ class TelegramChannelParser:
             self.db_session.rollback()
             print(f"Error saving property from message {message.id}: {e}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     parser = TelegramChannelParser()
     asyncio.run(parser.start())

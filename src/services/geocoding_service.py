@@ -2,6 +2,7 @@ import httpx
 from typing import Optional, Tuple
 from src.config import settings
 
+
 class GeocodingService:
     BASE_URL = "https://geocode-maps.yandex.ru/1.x/"
 
@@ -16,7 +17,7 @@ class GeocodingService:
             "apikey": self.api_key,
             "geocode": address,
             "format": "json",
-            "results": 1
+            "results": 1,
         }
 
         async with httpx.AsyncClient() as client:
@@ -36,5 +37,6 @@ class GeocodingService:
             except (httpx.RequestError, KeyError, IndexError) as e:
                 print(f"Failed to geocode address '{address}': {e}")
                 return None
+
 
 geocoding_service = GeocodingService()

@@ -13,6 +13,7 @@ bot = Bot(token=settings.BOT_TOKEN)
 dp = Dispatcher()
 ai_assistant = get_ai_assistant_service()
 
+
 @dp.message(Command(commands=["start", "help"]))
 async def send_welcome(message: types.Message):
     """
@@ -20,9 +21,11 @@ async def send_welcome(message: types.Message):
     """
     await message.reply(
         "Привет! Я ассистент агентства недвижимости Don Estate.\n"
-        "Вы можете задать мне любой вопрос или описать, какую недвижимость вы ищете.\n"
+        "Вы можете задать мне любой вопрос или описать, "
+        "какую недвижимость вы ищете.\n"
         "Например: 'Ищу двухкомнатную квартиру в Ворошиловском районе'."
     )
+
 
 @dp.message()
 async def handle_message(message: types.Message):
@@ -32,30 +35,32 @@ async def handle_message(message: types.Message):
     user_query = message.text
     response = await ai_assistant.get_response(user_query)
 
-    if response['type'] == 'text':
-        await message.answer(response['content'])
-    elif response['type'] == 'property_list':
-        await message.answer(response['summary'])
-        for prop in response['properties']:
+    if response["type"] == "text":
+        await message.answer(response["content"])
+    elif response["type"] == "property_list":
+        await message.answer(response["summary"])
+        for prop in response["properties"]:
             caption = (
                 f"<b>{prop['title']}</b>\n"
                 f"Адрес: {prop.get('address', 'Не указан')}\n"
                 f"Цена: ${prop.get('price_usd', 'Не указана')}"
             )
-            if prop['photo_url']:
+            if prop["photo_url"]:
                 await message.answer_photo(
-                    photo=prop['photo_url'],
+                    photo=prop["photo_url"],
                     caption=caption,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
                 )
             else:
                 await message.answer(caption, parse_mode="HTML")
-    elif response['type'] == 'error':
-        await message.answer(response['content'])
+    elif response["type"] == "error":
+        await message.answer(response["content"])
+
 
 async def main():
     # Start the bot
     await dp.start_polling(bot)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())

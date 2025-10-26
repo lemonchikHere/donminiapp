@@ -13,4 +13,6 @@ Pillow
 pytest
 pytest-asyncio
 python-multipart
-pytest-mock
+pre-commit
+black
+flake8

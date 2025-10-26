@@ -7,8 +7,6 @@ let mapScriptLoaded = false;
 const DonEstateApp = () => {
   const [currentScreen, setCurrentScreen] = useState('main');
   const [modal, setModal] = useState(null);
-  const [toasts, setToasts] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   // Search form state
   const [searchForm, setSearchForm] = useState({
@@ -52,7 +50,6 @@ const DonEstateApp = () => {
   const videoInputRef = useRef(null);
   const [searchProgress, setSearchProgress] = useState(0);
   const [offerProgress, setOfferProgress] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState(null);
 
   const ProgressBar = ({ progress }) => (
     <div className="progress-bar-container">
@@ -60,36 +57,6 @@ const DonEstateApp = () => {
       <div className="progress-text">{Math.round(progress)}%</div>
     </div>
   );
-
-  useEffect(() => {
-    // Dynamically load Yandex Maps API and fetch config
-    const fetchConfigAndLoadMap = async () => {
-      try {
-        const tg = window.Telegram.WebApp;
-        const response = await fetch('/api/config/', {
-          headers: {
-            'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0',
-          }
-        });
-        const config = await response.json();
-
-        // Set admin status
-        if (config.is_admin) {
-          setIsAdmin(true);
-        }
-
-        // Load Yandex Map
-        const script = document.createElement('script');
-        script.src = `https://api-maps.yandex.ru/2.1/?apikey=${config.yandex_maps_api_key}&lang=ru_RU`;
-        script.async = true;
-        document.head.appendChild(script);
-      } catch (error) {
-        console.error("Failed to load map config:", error);
-      }
-    };
-
-    fetchConfigAndLoadMap();
-  }, []);
 
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
@@ -461,7 +428,7 @@ const DonEstateApp = () => {
       setFavorites(data);
     } catch (error) {
       console.error(error);
-      showToast('Не удалось загрузить избранное.');
+      setModal({ type: 'error', message: 'Не удалось загрузить избранное.' });
     } finally {
       setIsLoading(false);
     }
@@ -508,7 +475,10 @@ const DonEstateApp = () => {
 
     } catch (error) {
       console.error("Failed to toggle favorite:", error);
-      showToast('Не удалось обновить избранное.');
+      setModal({
+        type: 'error',
+        message: 'Не удалось обновить избранное.'
+      });
     }
   };
 
@@ -560,14 +530,6 @@ const DonEstateApp = () => {
           >
             💬 Чат с ассистентом
           </button>
-          {isAdmin && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => setCurrentScreen('moderation')}
-            >
-              🔧 Модерация
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -698,7 +660,7 @@ const DonEstateApp = () => {
         setTimeout(() => setModal(null), 2000);
       } catch (error) {
         console.error(error);
-        showToast('Не удалось сохранить поиск.');
+        setModal({ type: 'error', message: 'Не удалось сохранить поиск.' });
       }
     };
 
@@ -875,15 +837,12 @@ const DonEstateApp = () => {
 
       } catch (error) {
         console.error(error);
-        showToast('Не удалось загрузить объекты на карте.');
-      } finally {
-        setIsMapLoading(false);
+        setModal({ type: 'error', message: 'Не удалось загрузить объекты на карте.' });
       }
     };
 
     return (
       <div className="screen map-screen">
-        {isLoading && <div className="map-loader">Загрузка карты...</div>}
         <div id="map" ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
         <button
           className="btn btn-back map-back-btn"
@@ -947,7 +906,7 @@ const DonEstateApp = () => {
 
       } catch (error) {
         console.error(error);
-        showToast('Произошла ошибка. Попробуйте еще раз.');
+        setMessages(prev => [...prev, { sender: 'bot', text: 'Произошла ошибка. Попробуйте еще раз.' }]);
       } finally {
         setIsBotTyping(false);
       }
@@ -1447,118 +1406,11 @@ const DonEstateApp = () => {
     }
   }, [currentScreen]);
 
-  const ModerationCard = ({ property, onApprove, onReject }) => (
-    <div className="property-card">
-      <div className="property-card__image-container">
-        {property.photos && property.photos.length > 0 ? (
-          <img src={property.photos[0]} alt={property.title} className="property-card__image" />
-        ) : (
-          <div className="property-card__no-image">Нет фото</div>
-        )}
-      </div>
-      <div className="property-card__content">
-        <h3 className="property-card__title">{property.address || 'Адрес не указан'}</h3>
-        <p className="property-card__price">{property.price_usd ? `$${property.price_usd.toLocaleString()}` : 'Цена не указана'}</p>
-        <p className="property-card__description">{property.description || 'Нет описания'}</p>
-        <div className="moderation-actions">
-            <button className="btn btn-primary" onClick={() => onApprove(property.id)}>Одобрить</button>
-            <button className="btn btn-secondary" onClick={() => onReject(property.id)}>Отклонить</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const ModerationScreen = () => {
-    const [queue, setQueue] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const fetchQueue = async () => {
-      setIsLoading(true);
-      try {
-        const tg = window.Telegram.WebApp;
-        const response = await fetch('/api/admin/moderation-queue', {
-          headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
-        });
-        if (!response.ok) throw new Error('Failed to fetch moderation queue');
-        const data = await response.json();
-        setQueue(data);
-      } catch (error) {
-        console.error(error);
-        showToast('Не удалось загрузить список объектов на модерацию.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    useEffect(() => {
-      fetchQueue();
-    }, []);
-
-    const handleApprove = async (propertyId) => {
-        // Optimistic update
-        setQueue(prev => prev.filter(p => p.id !== propertyId));
-        try {
-            const tg = window.Telegram.WebApp;
-            await fetch(`/api/admin/properties/${propertyId}/approve`, {
-                method: 'POST',
-                headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
-            });
-        } catch (error) {
-            showToast('Не удалось одобрить объект. Обновите список.');
-            fetchQueue(); // Re-fetch to get the correct state
-        }
-    };
-
-    const handleReject = async (propertyId) => {
-        // Optimistic update
-        setQueue(prev => prev.filter(p => p.id !== propertyId));
-        try {
-            const tg = window.Telegram.WebApp;
-            await fetch(`/api/admin/properties/${propertyId}`, {
-                method: 'DELETE',
-                headers: { 'x-telegram-user-id': tg.initDataUnsafe?.user?.id || '0' },
-            });
-        } catch (error) {
-            showToast('Не удалось отклонить объект. Обновите список.');
-            fetchQueue(); // Re-fetch to get the correct state
-        }
-    };
-
-    return (
-        <div className="screen">
-          <div className="container">
-            <button className="btn btn-back" onClick={() => setCurrentScreen('main')}>◀ Назад</button>
-            <div className="header"><h1>Модерация</h1></div>
-            <div className="results-list">
-              {isLoading ? (
-                [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
-              ) : queue.length > 0 ? (
-                queue.map(prop =>
-                  <ModerationCard
-                    key={prop.id}
-                    property={prop}
-                    onApprove={handleApprove}
-                    onReject={handleReject}
-                  />)
-              ) : (
-                <EmptyState
-                  icon="✅"
-                  title="Все чисто!"
-                  message="Нет новых объектов для модерации."
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      );
-  }
-
   const renderScreen = () => {
     switch (currentScreen) {
       case 'search': return <SearchScreen />;
       case 'offer': return <OfferScreen />;
-      case 'moderation': return <ModerationScreen />;
-      case 'results': return <ResultsScreen results={searchResults} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} />;
+      case 'results': return <ResultsScreen results={searchResults} total={searchTotal} onToggleFavorite={handleToggleFavorite} searchCriteria={searchForm} isLoading={isLoading} isFetchingMore={isFetchingMore} onFetchMore={fetchMoreResults} />;
       case 'favorites': return <FavoritesScreen favorites={favorites} onToggleFavorite={handleToggleFavorite} isLoading={isLoading} />;
       case 'map': return <MapScreen />;
       case 'chat': return <ChatScreen />;

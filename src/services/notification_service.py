@@ -5,6 +5,7 @@ from src.models.property import Property
 from src.models.saved_search import SavedSearch
 from src.models.user import User
 
+
 class NotificationService:
     def __init__(self, bot: Bot, db: Session):
         self.bot = bot
@@ -27,18 +28,27 @@ class NotificationService:
         Checks if a property matches the saved search criteria.
         This is a simplified matching logic.
         """
-        if criteria.get('transaction_type') and prop.transaction_type != criteria['transaction_type']:
+        if (
+            criteria.get("transaction_type")
+            and prop.transaction_type != criteria["transaction_type"]
+        ):
             return False
-        if criteria.get('property_types') and prop.property_type not in criteria['property_types']:
+        if (
+            criteria.get("property_types")
+            and prop.property_type not in criteria["property_types"]
+        ):
             return False
-        if criteria.get('rooms') and prop.rooms != criteria['rooms']:
+        if criteria.get("rooms") and prop.rooms != criteria["rooms"]:
             return False
-        if criteria.get('budget_max') and prop.price_usd > criteria['budget_max']:
+        if criteria.get("budget_max") and prop.price_usd > criteria["budget_max"]:
             return False
-        if criteria.get('budget_min') and prop.price_usd < criteria['budget_min']:
+        if criteria.get("budget_min") and prop.price_usd < criteria["budget_min"]:
             return False
         # A more complex district/address match would be needed for production
-        if criteria.get('district') and criteria['district'].lower() not in (prop.address or '').lower():
+        if (
+            criteria.get("district")
+            and criteria["district"].lower() not in (prop.address or "").lower()
+        ):
             return False
 
         return True
@@ -63,13 +73,13 @@ class NotificationService:
                     chat_id=telegram_user_id,
                     photo=prop.photos[0],
                     caption=message_text,
-                    parse_mode="Markdown"
+                    parse_mode="Markdown",
                 )
             else:
                 await self.bot.send_message(
                     chat_id=telegram_user_id,
                     text=message_text,
-                    parse_mode="Markdown"
+                    parse_mode="Markdown",
                 )
         except Exception as e:
             print(f"Failed to send notification to user {telegram_user_id}: {e}")

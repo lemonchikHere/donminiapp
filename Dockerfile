@@ -15,7 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY src/ ./src/
-COPY tests/ ./tests/
 COPY init_db.py .
 COPY static/ ./static/
 

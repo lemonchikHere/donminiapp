@@ -1,24 +1,37 @@
-from fastapi import Depends, HTTPException, Header, status
-from typing import Optional
+from fastapi import Depends, HTTPException, status, Header
+from sqlalchemy.orm import Session
+from src.database import get_db
+from src.models.user import User
 
-from src.config import settings
 
-def get_admin_user(x_telegram_user_id: Optional[str] = Header(None)):
-    """
-    Dependency to verify if the current user is an admin.
-    Compares the user's Telegram ID from the header with the ADMIN_CHAT_ID.
-    """
+def get_current_user(
+    x_telegram_user_id: str = Header(...), db: Session = Depends(get_db)
+) -> User:
     if not x_telegram_user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User ID not provided",
+            detail="Telegram User ID not provided",
         )
 
-    # Ensure ADMIN_CHAT_ID is set and compare
-    if not settings.ADMIN_CHAT_ID or int(x_telegram_user_id) != int(settings.ADMIN_CHAT_ID):
+    try:
+        telegram_user_id = int(x_telegram_user_id)
+    except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have permission to access this resource.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Telegram User ID format",
         )
 
-    return int(x_telegram_user_id)
+    user = db.query(User).filter(User.telegram_user_id == telegram_user_id).first()
+
+    if user is None:
+        # Auto-register user if not found
+        new_user = User(
+            telegram_user_id=telegram_user_id,
+            username=f"user_{telegram_user_id}",  # Placeholder
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+
+    return user

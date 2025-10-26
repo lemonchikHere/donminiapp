@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Settings:
     # Telegram API
     TELEGRAM_API_ID = os.getenv("TELEGRAM_API_ID")
@@ -12,14 +13,17 @@ class Settings:
 
     # Database
     DB_HOST = os.getenv("DB_HOST", "postgres")
-    DB_PORT = os.getenv("DB_PORT", 5432)
+    DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "don_estate")
     DB_USER = os.getenv("DB_USER", "postgres")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
 
     @property
     def database_url(self):
-        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return (
+            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
     # OpenAI
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -33,5 +37,6 @@ class Settings:
 
     # Yandex Maps
     YANDEX_API_KEY = os.getenv("YANDEX_API_KEY")
+
 
 settings = Settings()

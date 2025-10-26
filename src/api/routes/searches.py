@@ -10,21 +10,20 @@ from src.api.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/searches", tags=["Searches"])
 
+
 class SavedSearchCreate(BaseModel):
     criteria: Dict[str, Any]
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def save_search(
     search_in: SavedSearchCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Saves a user's search criteria for notifications."""
 
-    new_saved_search = SavedSearch(
-        user_id=current_user.id,
-        criteria=search_in.criteria
-    )
+    new_saved_search = SavedSearch(user_id=current_user.id, criteria=search_in.criteria)
     db.add(new_saved_search)
     db.commit()
 

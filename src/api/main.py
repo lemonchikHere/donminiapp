@@ -2,12 +2,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from .routes import search, properties, favorites, appointments, map, searches, config, offers, admin # chat temporarily disabled
+from .routes import (
+    search,
+    properties,
+    favorites,
+    appointments,
+    map,
+    searches,
+    config,
+    offers,
+)  # chat temporarily disabled
 
 app = FastAPI(
     title="Don Estate API",
     description="API for the Don Estate Telegram Mini App",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # CORS Middleware
@@ -29,11 +38,11 @@ app.include_router(map.router)
 app.include_router(searches.router)
 app.include_router(config.router)
 app.include_router(offers.router)
-app.include_router(admin.router)
 
-# Serve Frontend & Media
+# Serve Frontend
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def read_index():
-    return FileResponse('static/index.html')
+    return FileResponse("static/index.html")
