@@ -40,6 +40,75 @@
         <p>Загрузка...</p>
     </div>
     <div id="root"></div>
+    <script>
+        // Mock Telegram WebApp for browser testing
+        if (!window.Telegram || !window.Telegram.WebApp) {
+            console.log("Creating mock Telegram.WebApp object for browser testing.");
+            window.Telegram = {
+                WebApp: {
+                    initDataUnsafe: {
+                        user: {
+                            id: 999,
+                            first_name: 'Browser',
+                            last_name: 'User',
+                            username: 'browser_user',
+                            language_code: 'en',
+                        },
+                        chat_instance: 'test_chat_instance',
+                        chat_type: 'private',
+                        auth_date: Math.floor(new Date().getTime() / 1000),
+                        hash: 'test_hash_string_from_telegram',
+                    },
+                    initData: '',
+                    MainButton: {
+                        isVisible: false,
+                        show() { this.isVisible = true; console.log('Mock MainButton.show()'); },
+                        hide() { this.isVisible = false; console.log('Mock MainButton.hide()'); },
+                        setText(text) { console.log(`Mock MainButton.setText: ${text}`); },
+                        onClick(callback) { console.log('Mock MainButton.onClick registered.'); window.mockMainButtonCallback = callback; },
+                        offClick(callback) { console.log('Mock MainButton.offClick registered.'); },
+                        enable() { console.log('Mock MainButton.enable()'); },
+                        disable() { console.log('Mock MainButton.disable()'); },
+                    },
+                    BackButton: {
+                        isVisible: false,
+                        show() { this.isVisible = true; console.log('Mock BackButton.show()'); },
+                        hide() { this.isVisible = false; console.log('Mock BackButton.hide()'); },
+                        onClick(callback) { console.log('Mock BackButton.onClick registered.'); window.mockBackButtonCallback = callback; },
+                        offClick(callback) { console.log('Mock BackButton.offClick registered.'); }
+                    },
+                    expand: () => console.log('Mock WebApp.expand()'),
+                    ready: () => {
+                        if (window.TelegramWebAppReady) {
+                            window.TelegramWebAppReady();
+                        }
+                    },
+                    onEvent: (eventType, eventHandler) => console.log(`Mock WebApp.onEvent(${eventType}) registered`),
+                    sendData: (data) => console.log('Mock WebApp.sendData:', data),
+                    close: () => console.log('Mock WebApp.close()'),
+                    themeParams: {
+                      bg_color: '#ffffff',
+                      text_color: '#000000',
+                      hint_color: '#707579',
+                      link_color: '#007aff',
+                      button_color: '#007aff',
+                      button_text_color: '#ffffff',
+                    },
+                    colorScheme: 'light',
+                    isClosingConfirmationEnabled: false,
+                    enableClosingConfirmation: () => { this.isClosingConfirmationEnabled = true; console.log('Mock enableClosingConfirmation()'); },
+                    disableClosingConfirmation: () => { this.isClosingConfirmationEnabled = false; console.log('Mock disableClosingConfirmation()'); },
+                    showAlert: (message) => alert(`Mock showAlert: ${message}`),
+                    showConfirm: (message, callback) => {
+                        const result = confirm(`Mock showConfirm: ${message}`);
+                        if (callback) callback(result);
+                    }
+                }
+            };
+            // A simple way to trigger the button's onClick from the browser console for testing
+            window.Telegram.WebApp.initData = new URLSearchParams(window.Telegram.WebApp.initDataUnsafe).toString();
+        }
+    </script>
     <script type="text/babel" src="/static/app.js"></script>
     <script>
         window.addEventListener('load', function() {
