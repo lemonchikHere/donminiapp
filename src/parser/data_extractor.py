@@ -13,7 +13,7 @@ class PropertyDataExtractor:
     }
 
     PROPERTY_PATTERNS = {
-        'apartment': re.compile(r'(квартир|кв\.|apartment)', re.IGNORECASE),
+        'apartment': re.compile(r'\b(квартир\w*|кв\.(?!м)|apartment)\b', re.IGNORECASE),
         'house': re.compile(r'(дом|house|коттедж)', re.IGNORECASE),
         'commercial': re.compile(r'(коммерч|офис|магазин|торгов)', re.IGNORECASE)
     }
@@ -25,9 +25,9 @@ class PropertyDataExtractor:
     ]
 
     AREA_PATTERN = re.compile(r'(\d+[\.,]?\d*)\s*(м²|м2|кв\.м)', re.IGNORECASE)
-    FLOOR_PATTERN = re.compile(r'(\d+/\d+)\s*эт', re.IGNORECASE)
-    PRICE_USD_PATTERN = re.compile(r'(\d+[\s,]?\d*)\s*[\$|USD]', re.IGNORECASE)
-    PRICE_RUB_PATTERN = re.compile(r'(\d+[\s,]?\d*)\s*[₽|RUB|руб]', re.IGNORECASE)
+    FLOOR_PATTERN = re.compile(r'(\d+/\d+)\s*(эт)?', re.IGNORECASE)
+    PRICE_USD_PATTERN = re.compile(r'(\d+[\s,\.]?\d*[\s,\.]?\d*)\s*[\$|USD]', re.IGNORECASE)
+    PRICE_RUB_PATTERN = re.compile(r'(\d+[\s,\.]?\d*[\s,\.]?\d*)\s*[₽|RUB|руб]', re.IGNORECASE)
 
     def extract(self, text: str) -> Dict:
         """Extracts structured data from message text."""
@@ -74,12 +74,12 @@ class PropertyDataExtractor:
         """Extracts price and converts to USD."""
         match = self.PRICE_USD_PATTERN.search(text)
         if match:
-            price_str = match.group(1).replace(',', '').replace(' ', '')
+            price_str = match.group(1).replace(',', '').replace(' ', '').replace('.', '')
             return float(price_str)
 
         match = self.PRICE_RUB_PATTERN.search(text)
         if match:
-            price_rub = float(match.group(1).replace(',', '').replace(' ', ''))
+            price_rub = float(match.group(1).replace(',', '').replace(' ', '').replace('.', ''))
             # TODO: Use a real-time exchange rate API
             return round(price_rub / 90.0, 2)
 
