@@ -12,3 +12,4 @@ httpx
 Pillow
 pytest
 pytest-asyncio
+python-multipart
