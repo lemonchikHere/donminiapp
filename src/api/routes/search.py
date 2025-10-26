@@ -85,7 +85,7 @@ async def search_properties(
         query = query.filter(Property.transaction_type == search_request.transaction_type)
     if search_request.property_types:
         query = query.filter(Property.property_type.in_(search_request.property_types))
-    if search_request.rooms:
+    if search_request.rooms is not None:
         query = query.filter(Property.rooms == search_request.rooms)
     if search_request.budget_min:
         query = query.filter(Property.price_usd >= search_request.budget_min)
