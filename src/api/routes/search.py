@@ -45,9 +45,7 @@ class SearchResponse(BaseModel):
 async def search_properties(
     search_request: PropertySearchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    limit: int = 20,
-    offset: int = 0
+    current_user: User = Depends(get_current_user)
 ):
     """
     Performs semantic search for properties using vector similarity and applies filters.
@@ -94,16 +92,13 @@ async def search_properties(
     if search_request.budget_max:
         query = query.filter(Property.price_usd <= search_request.budget_max)
 
-    # 4. Get total count for pagination
-    total_count = query.count()
-
-    # 5. Order by similarity, apply pagination and get results
+    # 4. Order by similarity and limit results
     if query_embedding:
-        results = query.order_by('distance').offset(offset).limit(limit).all()
+        results = query.order_by('distance').limit(20).all()
     else:
-        results = query.order_by(Property.posted_at.desc()).offset(offset).limit(limit).all()
+        results = query.order_by(Property.posted_at.desc()).limit(20).all()
 
-    # 6. Format response
+    # 5. Format response
     properties_response = []
     # When querying a single column, SQLAlchemy returns a list of tuples, e.g., [(value1,), (value2,)]
     # We need to extract the first element from each tuple.
@@ -140,5 +135,5 @@ async def search_properties(
 
     return SearchResponse(
         results=properties_response,
-        total=total_count
+        total=len(properties_response)
     )
