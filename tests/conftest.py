@@ -1,75 +1,100 @@
-import asyncio
 import os
-from typing import AsyncGenerator, Generator
-
 import pytest
-import pytest_asyncio
-from dotenv import load_dotenv
-from httpx import AsyncClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, JSON
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.types import ARRAY, TypeDecorator
+from fastapi.testclient import TestClient
 
-# Загружаем переменные окружения для тестов
-load_dotenv(".env.test")
+# --- Set dummy env vars BEFORE any other imports ---
+os.environ.update({
+    "YANDEX_API_KEY": "test_yandex_key",
+    "OPENAI_API_KEY": "test_openai_key",
+    "TELEGRAM_BOT_TOKEN": "test_bot_token",
+    "POSTGRES_USER": "testuser",
+    "POSTGRES_PASSWORD": "testpass",
+    "POSTGRES_DB": "testdb",
+    "POSTGRES_HOST": "localhost",
+    "ADMIN_CHAT_ID": "12345"
+})
 
-# Устанавливаем переменную окружения, чтобы приложение знало, что оно в тестовом режиме
-os.environ["TESTING"] = "1"
+# --- Import all models to register them with Base ---
+from src.models.base import Base
+from src.models.user import User, Favorite
+from src.models.property import Property
+from src.models.appointment import Appointment
 
-# Перезагружаем модуль config, чтобы он подхватил тестовые переменные
-# Это важно, так как DATABASE_URL используется при инициализации модуля
-from src import config
-import importlib
-importlib.reload(config)
-
+# --- Now, import the app and dependencies ---
 from src.api.main import app
-from src.database import get_db, Base
+from src.api.dependencies import get_db
 
+# --- Custom compilers for PostgreSQL types on SQLite ---
+from pgvector.sqlalchemy import Vector
 
-# Создаем тестовый движок и сессию для БД
-engine_test = create_engine(config.settings.database_url)
-SessionTest = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
+@compiles(ARRAY, 'sqlite')
+def compile_array_sqlite(type_, compiler, **kw):
+    return "JSON"
 
-# --- Фикстуры ---
+@compiles(Vector, 'sqlite')
+def compile_vector_sqlite(type_, compiler, **kw):
+    # It renders as a JSON field, and we'll insert JSON-nulls for embeddings
+    return "JSON"
 
-@pytest.fixture(scope="session")
-def event_loop(request) -> Generator:
-    """Create an instance of the default event loop for each test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+# --- Test DB Setup ---
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_database():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
-@pytest_asyncio.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
-    """
-    Фикстура для создания и очистки сессии БД для каждого теста.
-    """
-    Base.metadata.create_all(bind=engine_test)
-    db = SessionTest()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(bind=engine_test)
+# --- Dependency Overrides & Fixtures ---
 
+# This single fixture provides a transactional scope around each test.
+@pytest.fixture(scope="function")
+def db_session():
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = TestingSessionLocal(bind=connection)
 
-from httpx import AsyncClient, ASGITransport
-
-@pytest_asyncio.fixture(scope="function")
-async def test_client(db_session: Session) -> AsyncGenerator[AsyncClient, None]:
-    """
-    Фикстура для создания тестового клиента API.
-    """
+    # Override the app's dependency to use this session
     def override_get_db():
-        try:
-            yield db_session
-        finally:
-            db_session.close()
+        yield session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        yield client
+    yield session
 
-    # Очищаем переопределение после теста
-    app.dependency_overrides.clear()
+    # Teardown
+    session.close()
+    transaction.rollback()
+    connection.close()
+    # Restore original dependency
+    app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture(scope="module")
+def client():
+    # This client doesn't need the user_id header anymore,
+    # as the user will be created per-test by the test_user fixture
+    with TestClient(app) as c:
+        yield c
+
+@pytest.fixture(scope="function")
+def test_user(db_session):
+    # This fixture now uses the same transactional session as the app
+    user = User(telegram_user_id=123, username="testuser")
+    db_session.add(user)
+    db_session.commit()
+
+    # We need to update the client header inside this fixture to match the created user
+    # Or, even better, let's create a new client for each function
+    client = TestClient(app)
+    client.headers["X-Telegram-User-Id"] = str(user.telegram_user_id)
+
+    return user, client
