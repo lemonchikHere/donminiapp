@@ -9,9 +9,9 @@ class Property(Base):
     __tablename__ = 'properties'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    telegram_message_id = Column(BIGINT, unique=True, nullable=False)
-    telegram_channel_id = Column(BIGINT, nullable=False)
-    posted_at = Column(DateTime, nullable=False)
+    telegram_message_id = Column(BIGINT, unique=True, nullable=True)
+    telegram_channel_id = Column(BIGINT, nullable=True)
+    posted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     transaction_type = Column(Enum('sell', 'rent', name='transaction_types'))
     property_type = Column(Enum('apartment', 'house', 'commercial', name='property_types'))
@@ -31,7 +31,7 @@ class Property(Base):
     photos = Column(ARRAY(Text))
     video_url = Column(Text)
     views_count = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
+    status = Column(Enum('moderation', 'active', 'archived', name='property_status_types'), default='active', nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
