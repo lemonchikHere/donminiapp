@@ -10,6 +10,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
 
 from src.database import get_db
 from src.services.offer_service import OfferService
